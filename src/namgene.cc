@@ -78,11 +78,14 @@ NAMGene::NAMGene() {
 	       << "Posterior probabilities will be only rough estimates." << endl;
       }
   }
+
+
   try {
       alternatives_from_sampling = Properties::getBoolProperty("alternatives-from-sampling");
   } catch (...) {
       alternatives_from_sampling = false;
   }
+
   try {
       show_progress = Properties::getBoolProperty("progress");
   } catch (...) {
@@ -180,6 +183,9 @@ int NAMGene::getStateIndex(StateType type){
 
 void NAMGene::viterbiAndForward( const char* dna, bool useProfile){
  
+  // GM
+  //cerr << "ENTERING NAMGENE ViterbiAndForward" << endl;
+
   StateModel::setPP(useProfile ? profileModel : NULL);  
   int progress, oldprogress=0;
 
@@ -207,7 +213,8 @@ void NAMGene::viterbiAndForward( const char* dna, bool useProfile){
   StateModel::setContentStairs(&cs);
 
   curGCIdx = -1; // initialize with invalid GC content class
-  prepareModels(dna, dnalen);
+    
+    prepareModels(dna, dnalen);
   
 
   /*
@@ -222,6 +229,7 @@ void NAMGene::viterbiAndForward( const char* dna, bool useProfile){
     curGCIdx = cs.idx[0];
     initAlgorithms(); // this indirectly calls initPredecessors required for backtracking later
     updateToLocalGCEach(curGCIdx);
+  
     for( int j = 1; j < dnalen; j++ ) {
       for( int i = 0; i < statecount; i++ ){
 	if (i == synchstate) {
@@ -254,11 +262,22 @@ void NAMGene::viterbiAndForward( const char* dna, bool useProfile){
 #endif
 
   initAlgorithms(); // update GC content dependent parameters
-  for( int j = 1; j < dnalen; j++ ) { // TODO: this ignores the first nucleotide
-      if (cs.idx[j] != curGCIdx) {// check whether GC content has changed, this is in particular the case at the very start
-          curGCIdx = cs.idx[j];
-	  updateToLocalGCEach(curGCIdx, j, cs.getNextStep(j) - 1); // update GC content dependent parameters
+  
+  // GM testing
+  vector<int> endOfPred, numFs;
+  endOfPred.resize(statecount, -1);
+  numFs.resize(statecount,0);
+    
+  for( int j = 1; j < dnalen; j++ ) 
+  { 
+      // TODO: this ignores the first nucleotide
+      if (cs.idx[j] != curGCIdx) 
+      {
+          // check whether GC content has changed, this is in particular the case at the very start
+        curGCIdx = cs.idx[j];
+        updateToLocalGCEach(curGCIdx, j, cs.getNextStep(j) - 1); // update GC content dependent parameters
       }
+      
       if (show_progress) {
 	  progress = 1+100*j/dnalen;
 	  if (progress > oldprogress){
@@ -271,15 +290,41 @@ void NAMGene::viterbiAndForward( const char* dna, bool useProfile){
       }
       if (useProfile) 
 	  profileModel->advanceScores(j);
-      for( int i = 0; i < statecount; i++ ){
-	  if (stateReachable[i]) {
+      
+      for( int i = 0; i < statecount; i++ )
+      {
+	    if (stateReachable[i]) 
+        {
 	      states[i]->viterbiForwardAndSampling(viterbi, forward, i, j, doViterbi(needForwardTable), oli);
-	  }
+            
+            endOfPred[i] = states[i]->getEndOfPred();
+            numFs[i] = states[i]->getNumFs();
+        
+        
+        }
       }
+
+    // GM dumping : to be passed to GUI on Windows
+    /*
+    cerr << j << endl;
+    for(int k=0;k<36;++k)
+        cerr << viterbi[j][k] << " ";
+    cerr << endl;
+	
+    for(int k=0;k<36;++k)
+        cerr << endOfPred[k] << " ";
+    cerr << endl;
+
+    for(int k=0;k<36;++k)
+        cerr << numFs[k] << " ";
+    cerr << endl;
+    */
+        
       if (j % 1000 == 0) {
 #ifdef DEBUG 
 	  cerr << "[" << j;
 #endif
+
 	  int deletedSubmaps=0;
 	  int newDeletionEnd = StateModel::getActiveWindowStart(j);
 	  while (deletionEnd < newDeletionEnd) {
@@ -319,6 +364,8 @@ void NAMGene::viterbiAndForward( const char* dna, bool useProfile){
 	  }
 #endif
       }
+
+
 #ifdef DEBUG
 # ifdef DEBUG_BACK
       if (useProfile) 
@@ -345,6 +392,8 @@ void NAMGene::viterbiAndForward( const char* dna, bool useProfile){
 	      }
 # endif
 #endif
+
+
   }
 #ifdef DEBUG
   if (useProfile) {
@@ -369,16 +418,24 @@ void NAMGene::viterbiAndForward( const char* dna, bool useProfile){
   if (show_progress)
       cerr << endl;
 
+
+  // GM
+  // cerr << "LEAVING NAMGENE ViterbiAndForward" << endl;
+
+
   /*
    * The multiplication of the terminal probabilities is not done here, because some algorithms
    * call viterbiForwardAndSampling and thus change the viterbi and forward table again.
    * This probability needs to be multiplied at the appropriate places.
    */
-
 } // end ViterbiAndForward
 
 StatePath* NAMGene::getSampledPath(const char *dna, const char* seqname){
-  StatePath *sampledPath = new StatePath();
+  
+    // GM
+  //cerr << "ENTERING NAMGENE getSampledPath" << endl;
+
+StatePath *sampledPath = new StatePath();
   if (!needForwardTable)
       return sampledPath;
   if (seqname)
@@ -394,15 +451,19 @@ StatePath* NAMGene::getSampledPath(const char *dna, const char* seqname){
       sampledPath->push(new State(0, dnalen-1, getStateType(synchstate)));
     for (int i=0; i<dnalen; i++) 
 	pathEmiProb *= (float) .25;
-  } else { // normal case
+  } 
+  else 
+  { // normal case
       const ViterbiColumnType& lastCol = forward[dnalen-1];
       OptionsList ol;
       OptionListItem oli;
-      for (int i=0; i < statecount; i++) 
-	  if (lastCol[i] * termProbs[i]>0.0)
-	      ol.add(i, dnalen-1, lastCol[i] * termProbs[i]);
-      ol.prepareSampling();
-      oli = ol.sample();
+
+        for (int i=0; i < statecount; i++) 
+	        if (lastCol[i] * termProbs[i]>0.0)
+	            ol.add(i, dnalen-1, lastCol[i] * termProbs[i]);
+        
+        ol.prepareSampling();
+        oli = ol.sample();
     
       base = oli.base;
       state = oli.state;
@@ -431,10 +492,15 @@ StatePath* NAMGene::getSampledPath(const char *dna, const char* seqname){
       }
   }
 
+
   /*
    * this pathEmiProb is (should be equal) to what getPathEmiProb computes on the sampledPath
    */
   sampledPath->pathemiProb = pathEmiProb;
+
+// GM
+  // cerr << "LEAVING NAMGENE getSampledPath" << endl;
+
   return sampledPath;
 }
 
@@ -443,6 +509,12 @@ StatePath* NAMGene::getSampledPath(const char *dna, const char* seqname){
  * Create the Viterbi-Path
  */
 StatePath* NAMGene::getViterbiPath(const char *dna, const char* seqname){
+  
+  
+  // GM : to rule out side effects : keep in mind fsArr 
+  // is passed to state only in the following code and nowhere else!
+  // cerr << "ENTERING NAMGENE getViterbiPath" << endl;
+
   OptionListItem oli;
   int dnalen = viterbi.size();
   StatePath *viterbiPath = new StatePath();
@@ -460,12 +532,15 @@ StatePath* NAMGene::getViterbiPath(const char *dna, const char* seqname){
       else 
 	  value = lastcol[i];
       value *= termProbs[i];
-      if (value > maxValue) {
-	  maxValue = value;
-	  state = getFullStateId(i, substate);
+      if (value > maxValue) 
+      {
+        maxValue = value;
+	    state = getFullStateId(i, substate);
       }
   }
-  if (maxValue <= 0) {
+
+  if (maxValue <= 0) 
+  {
       throw ProjectError("No feasible path found in HMM");
   }
 
@@ -480,20 +555,27 @@ StatePath* NAMGene::getViterbiPath(const char *dna, const char* seqname){
     int base = dnalen-1;
     oli.reset();
     
-    while (base>0) {
-	int stateidx;
-	SubstateId substate;  
-	getStatePair(state, stateidx, substate);
+
+    int j=0;
+
+    while (base>0) 
+    {
+	    int stateidx;
+	    SubstateId substate;  
+	    getStatePair(state, stateidx, substate);
+
 #ifdef DEBUG_STATES
 	if (stateMap[stateidx] != igenic && !isGeometricIntron(stateMap[stateidx]) &&
 	    !isRGeometricIntron(stateMap[stateidx])) 
 	{
 	    cerr << "state=" << stateidx << ", stateType=" << stateTypeIdentifiers[stateMap[stateidx]]
 		 << ", base=" << base << ", ln vit=" <<  viterbi[base].get(stateidx, substate).log() << endl;
+
 	    if (isCodingExon(stateMap[stateidx])) 
-		cerr << endl;
+		    cerr << endl;
 	}
 #endif
+
 	// need to test on long example  seqs with index changes (bug fixed on Mar 25th, 2015)
 	if (cs.idx[base] != curGCIdx) { // check whether GC content has changed
 	    curGCIdx = cs.idx[base];
@@ -501,24 +583,38 @@ StatePath* NAMGene::getViterbiPath(const char *dna, const char* seqname){
 	    // no new computation of SegProbs (empty interval [2,1]
 	    updateToLocalGCEach(curGCIdx, 2, 1);
 	}
+
+
 	states[stateidx]->viterbiForwardAndSampling( viterbi, forward, state, base, 
 						     doBacktracking, oli );
-	if (!Constant::overlapmode && ((oli.base >= base && oli.state == state) || (oli.base > base + 10))) {
+	
+    
+    if (!Constant::overlapmode && ((oli.base >= base && oli.state == state) || (oli.base > base + 10))) {
 	  throw ProjectError("Viterbi got stuck at state " + itoa(state) + "and base " + itoa(base) +
 			     ".\n(oli.state =" + itoa(oli.state) + ", oli.base="+ itoa(oli.base) +")");
 	}
-	State *temp = new State(oli.base+1, base, getStateType(stateidx));
+	
+    State *temp = new State(oli.base+1, base, getStateType(stateidx), oli.fsArr);
 	temp->setTruncFlag(base, oli.base, dnalen);
 	viterbiPath->push(temp);
+
 	if (Constant::overlapmode && oli.predEnd > -INT_MAX)
 	  base = oli.predEnd;
 	else 
 	  base = oli.base;
+
+    ++j;
+    
 	state = oli.state;
 	oli.reset();
     }
+    
     if (profileModel)
-	profileModel->appendMatchesTo(viterbiPath->proteinMatches);
+	    profileModel->appendMatchesTo(viterbiPath->proteinMatches);
+    
+  // GM
+  // cerr << "LEAVINING NAMGENE getViterbiPath" << endl;
+
     return viterbiPath;
 }
 
@@ -526,7 +622,11 @@ StatePath* NAMGene::getViterbiPath(const char *dna, const char* seqname){
  * NAMGene::doViterbiPiecewise
  * Iterate the viterbi algorithm on pieces of DNA small enough so that the DP matrices fit into memory.
  */
-Transcript *NAMGene::doViterbiPiecewise(SequenceFeatureCollection& sfc, AnnoSequence *annoseq, Strand strand){
+Transcript *NAMGene::doViterbiPiecewise(SequenceFeatureCollection& sfc, AnnoSequence *annoseq, Strand strand, Fs fs)
+{
+  // GM
+  //cerr << "ENTERING NAMGENE doViterbiPiecewise" << endl;
+
   list<AltGene> *geneList = new list<AltGene>;
   char *dna = annoseq->sequence;
   char *curdna;
@@ -548,6 +648,23 @@ Transcript *NAMGene::doViterbiPiecewise(SequenceFeatureCollection& sfc, AnnoSequ
   int maxstep = 1000000;
   int endPos, beginPos;
   int seqlen = strlen(dna);
+
+    // GM : the sequence is copied, the copy will be shrunk according to frame shifts
+    char* dnaFS = NULL;
+
+    if(fs != Fs::none && seqlen>0)
+    {
+        dnaFS = new char[seqlen+1];
+            
+        if(dnaFS)
+            strcpy(dnaFS, dna);
+            
+        StateModel::setSwapSeq(dnaFS);
+    }
+    
+    StateModel::setSwapSeq(dnaFS);
+    StateModel::setFs(fs);
+    
   try {
     maxstep = Properties::getIntProperty( "maxDNAPieceSize" );
   } catch (...) {}
@@ -616,10 +733,13 @@ Transcript *NAMGene::doViterbiPiecewise(SequenceFeatureCollection& sfc, AnnoSequ
 
     list<AltGene> *pieceGenes = new list<AltGene>;
 
-    if (!singlestrand) {
-	SequenceFeatureCollection partSFC(sfc, beginPos, endPos);
-	pieceGenes = getStepGenes(curAnnoSeq, partSFC, strand);
-    } else {
+    if (!singlestrand)
+    {
+    	SequenceFeatureCollection partSFC(sfc, beginPos, endPos);
+	    pieceGenes = getStepGenes(curAnnoSeq, partSFC, strand);
+    } 
+    else 
+    {
 	if (strand == plusstrand || strand == bothstrands){
 	    SequenceFeatureCollection partSFC(sfc, beginPos, endPos);
 	    pieceGenes = getStepGenes(curAnnoSeq, partSFC, plusstrand);
@@ -636,6 +756,7 @@ Transcript *NAMGene::doViterbiPiecewise(SequenceFeatureCollection& sfc, AnnoSequ
 	}
     }
     pieceGenes->sort();
+    
     // shift gene coordinates, set sequence name, gene and transcript names
     for (list<AltGene>::iterator agit = pieceGenes->begin(); agit != pieceGenes->end(); ++agit){
 	agit->shiftCoordinates(beginPos + annoseq->offset);
@@ -666,11 +787,10 @@ Transcript *NAMGene::doViterbiPiecewise(SequenceFeatureCollection& sfc, AnnoSequ
     // append pieceGenes to geneList
     geneList->splice(geneList->end(), *pieceGenes);
 
-    
-	
     delete curAnnoSeq;
     beginPos = endPos + 1;
-  } while (beginPos < seqlen);
+  } 
+  while (beginPos < seqlen);
 
   /*
    * Reset the original initial and terminial probabilities.
@@ -684,13 +804,34 @@ Transcript *NAMGene::doViterbiPiecewise(SequenceFeatureCollection& sfc, AnnoSequ
   delete synchProbs;
   if (geneList->empty() && !Constant::MultSpeciesMode)
       cout << "# (none)" << endl;
-  return getPtr(geneList);
+ 
+ 
+
+    // GM
+    if(fs != Fs::none)
+    {
+	    if(dnaFS)
+        {
+            StateModel::setSwapSeq(NULL);
+
+            delete[] dnaFS;
+            dnaFS = NULL;
+        }
+    }
+    
+    // GM
+    //cerr << "LEAVING NAMGENE doViterbiPiecewise" << endl;
+    return getPtr(geneList);
 }
 
 /*
  * NAMGene::getStepGenes
  */
 list<AltGene> *NAMGene::getStepGenes(AnnoSequence *annoseq, SequenceFeatureCollection& sfc, Strand strand, bool onlyViterbi){
+  
+    // GM
+    // cerr << "ENTERING NAMGENE getStepGene" << endl;
+
     list<AltGene> *genesAllHints, *genesPartialHints, *genes;
     list<list<AltGene> *> *results;
     const char *dna = annoseq->sequence;
@@ -760,6 +901,10 @@ list<AltGene> *NAMGene::getStepGenes(AnnoSequence *annoseq, SequenceFeatureColle
     genes = sfc.joinGenesFromPredRuns(results, maxtracks, uniqueCDS);
     // TODO: delete results 
     postProcessGenes(genes, annoseq); // truncate masked UTRs
+
+    // GM
+    // cerr << "LEAVING NAMGENE getStepGene" << endl;
+
     return genes;
 }
 
@@ -773,6 +918,10 @@ list<AltGene> *NAMGene::getStepGenes(AnnoSequence *annoseq, SequenceFeatureColle
  */
 
 list<AltGene> *NAMGene::findGenes(const char *dna, Strand strand, bool onlyViterbi){
+
+  // GM
+  // cerr << "ENTERING NAMGENE findGenes" << endl;
+
   list<AltGene> *agl;
   list<Transcript*> alltranscripts;
   list<Transcript*> *filteredTranscripts = new list<Transcript*>;
@@ -786,6 +935,8 @@ list<AltGene> *NAMGene::findGenes(const char *dna, Strand strand, bool onlyViter
   
   // compute the viterbi and forward table, main work done here
   viterbiAndForward(dna, profileModel);
+
+
 #ifdef DEBUG
   cerr << "After viterbi: average load is " << viterbi.load() << ",\n"
        << "                      used are " << viterbi.used_load() << " of " << statecount << " states.\n";
@@ -800,6 +951,10 @@ list<AltGene> *NAMGene::findGenes(const char *dna, Strand strand, bool onlyViter
    * add the viterbi transcripts to the list of genes
    */
   viterbiPath = getViterbiPath(dna, "");
+  
+  //GM print viterbiPath
+  // viterbiPath->print();
+  
   //getPathEmiProb(viterbiPath, dna); // for testing
   condensedViterbiPath = StatePath::condenseStatePath(viterbiPath);
   //cout << "Viterbi path:" << endl;
@@ -831,75 +986,88 @@ list<AltGene> *NAMGene::findGenes(const char *dna, Strand strand, bool onlyViter
       g->viterbi = true;
       alltranscripts.push_back(g);
   }
+    int progress, oldprogress=0;
+    if (sampleiterations > 1) 
+    {
+        if (show_progress) 
+        {
+	        cerr << "sampling algorithm progress:\n[%]: ";
+	        oldprogress = 0;
+        }
+        /*
+        * Sample and add the sampled genes to the list of genes
+        */
+        StatePath *sampledPath, *condensedsampledPath;
+        for (int i=0; i < sampleiterations-1; i++) 
+        {
+            #ifdef DEBUG
+	        cerr << "Sample iteration " << i << endl;
+            #endif
 
-  int progress, oldprogress=0;
-  if (sampleiterations > 1) {
-      if (show_progress) {
-	  cerr << "sampling algorithm progress:\n[%]: ";
-	  oldprogress = 0;
-      }
-    /*
-     * Sample and add the sampled genes to the list of genes
-     */
-    StatePath *sampledPath, *condensedsampledPath;
-    for (int i=0; i < sampleiterations-1; i++) {
-#ifdef DEBUG
-	cerr << "Sample iteration " << i << endl;
-#endif
-      if (show_progress) {
-	  progress = 100*i/(sampleiterations-2);
-	  while (progress > oldprogress){
-	      oldprogress++;
-	      if (oldprogress%10<9 && oldprogress%10>0)
-		  cerr << ".";
-	      else if (oldprogress%10==0)
-		  cerr << oldprogress;
-	  }
-      }
-      // sample the transcripts 
-      sampledPath = getSampledPath(dna, "");
-      condensedsampledPath = StatePath::condenseStatePath(sampledPath);
-      // condensedsampledPath->print(); // for testing
-      char gr[9];
-      sprintf(gr, "s%d-", (i+1));
-      genes = condensedsampledPath->projectOntoGeneSequence(gr);
-      delete sampledPath;
-      delete condensedsampledPath;
-      
-      //cout << "i=" << i << endl;
-      // store all sampled transcripts
-      for (g = genes; g != NULL; g = g->next) {
-	  //  g->printGFF();
-        // initialize, all apostprobs and counts must be set to 1 
-	g->apostprob = 1.0;
-	g->setStatePostProbs(1.0);
-	g->setSampleCount(1);
-	g->hasProbs = true;
-	g->viterbi = false;
-	if (!alternatives_from_sampling)
-	  g->throwaway = true; // no alternatives requested, throw sampled gene away later
-	alltranscripts.push_back(g);
-      }
-    } // for i<sampleiterations
-    if (show_progress)
-	cerr << endl;
+            if (show_progress) 
+            {
+                progress = 100*i/(sampleiterations-2);
+            
+                while (progress > oldprogress)
+                {
+                    oldprogress++;
+            
+                    if (oldprogress%10<9 && oldprogress%10>0)
+                        cerr << ".";
+                    else if (oldprogress%10==0)
+                        cerr << oldprogress;
+                }
+            }
+
+            // sample the transcripts 
+            sampledPath = getSampledPath(dna, "");
+            condensedsampledPath = StatePath::condenseStatePath(sampledPath);
+            // condensedsampledPath->print(); // for testing
+            char gr[9];
+            sprintf(gr, "s%d-", (i+1));
+            genes = condensedsampledPath->projectOntoGeneSequence(gr);
+            delete sampledPath;
+            delete condensedsampledPath;
+
+            //cout << "i=" << i << endl;
+            // store all sampled transcripts
+            for (g = genes; g != NULL; g = g->next) 
+            {
+                //  g->printGFF();
+                // initialize, all apostprobs and counts must be set to 1 
+                g->apostprob = 1.0;
+                g->setStatePostProbs(1.0);
+                g->setSampleCount(1);
+                g->hasProbs = true;
+                g->viterbi = false;
+                if (!alternatives_from_sampling)
+                    g->throwaway = true; // no alternatives requested, throw sampled gene away later
+                alltranscripts.push_back(g);
+            }
+        } // for i<sampleiterations
+    
+        if (show_progress)
+	        cerr << endl;
         
-    alltranscripts.sort(ptr_comparison<Transcript>());
-    // now remove multiple copies and increase apostprob instead
-    for (geneit1 = alltranscripts.begin(); geneit1 != alltranscripts.end();){
-	geneit2 = geneit1;
-	for (geneit2++; geneit2 != alltranscripts.end() && (*geneit2)->geneBegin() == (*geneit1)->geneBegin();)
-	    if (**geneit1 == **geneit2){
-		(*geneit1)->throwaway &= (*geneit2)->throwaway; // throw away only if all versions should be thrown away.
-		(*geneit1)->viterbi |= (*geneit2)->viterbi;
-		(*geneit1)->addSampleCount(1);
-		(*geneit1)->apostprob += 1.0;
-		(*geneit1)->addStatePostProbs(1.0);
-		delete *geneit2; // free space for duplicated transcript
-		geneit2 = alltranscripts.erase(geneit2); // remove deleted pointer from the list as well
-	    } else
-		geneit2++;
-	geneit1++;
+        alltranscripts.sort(ptr_comparison<Transcript>());
+        // now remove multiple copies and increase apostprob instead
+        for (geneit1 = alltranscripts.begin(); geneit1 != alltranscripts.end();)
+        {
+	        geneit2 = geneit1;
+	        for (geneit2++; geneit2 != alltranscripts.end() && (*geneit2)->geneBegin() == (*geneit1)->geneBegin();)
+	            if (**geneit1 == **geneit2)
+                {
+		            (*geneit1)->throwaway &= (*geneit2)->throwaway; // throw away only if all versions should be thrown away.
+                    (*geneit1)->viterbi |= (*geneit2)->viterbi;
+                    (*geneit1)->addSampleCount(1);
+                    (*geneit1)->apostprob += 1.0;
+                    (*geneit1)->addStatePostProbs(1.0);
+                    delete *geneit2; // free space for duplicated transcript
+                    geneit2 = alltranscripts.erase(geneit2); // remove deleted pointer from the list as well
+	            } 
+                else
+        		    geneit2++;
+	        geneit1++;
     }
    
     /*
@@ -915,6 +1083,7 @@ list<AltGene> *NAMGene::findGenes(const char *dna, Strand strand, bool onlyViter
 	(*geneit1)->normPostProb(sampleiterations); // +1 wegen Viterbipfad
     }
   }
+
   /*
    * filter transcripts by probabilities, strand
    */
@@ -965,6 +1134,12 @@ list<AltGene> *NAMGene::findGenes(const char *dna, Strand strand, bool onlyViter
 
   delete condensedViterbiPath;
  
+
+// GM
+  //cerr << "LEAVING NAMGENE findGenes" << endl;
+
+
+
 #ifdef DEBUG
   cerr << "At the end of findGenes: average load is " << viterbi.load() << ",\n"
        << "                                used are " << viterbi.used_load() << " of " << statecount << " states.\n";
@@ -983,6 +1158,11 @@ list<AltGene> *NAMGene::findGenes(const char *dna, Strand strand, bool onlyViter
  * but also likely to be in the intergenic region (synch state). 
  */ 
 int NAMGene::getNextCutEndPoint(const char *dna, int beginPos, int maxstep, SequenceFeatureCollection& sfc){
+  
+  // GM
+  //cerr << "ENTERING NAMGENE getNextCutEndPoint" << endl;
+  
+  
   int restlen = strlen(dna+beginPos);
   char *curdna; 
   int cutendpoint=0;
@@ -998,6 +1178,9 @@ int NAMGene::getNextCutEndPoint(const char *dna, int beginPos, int maxstep, Sequ
     examChunkSize = 150000;
 
   if (restlen <= maxstep){
+    // GM
+    //cerr << "LEAVING NAMGENE getNextCutEndPoint" << endl;
+    
     return beginPos + restlen-1;
   } else {
       /*
@@ -1141,6 +1324,12 @@ int NAMGene::getNextCutEndPoint(const char *dna, int beginPos, int maxstep, Sequ
   } 
   if (cutendpoint <= beginPos + 0.05 * maxstep || cutendpoint <= beginPos + 5000) // move by at least 5% and by at least 5000bp
       cutendpoint = beginPos + maxstep - 1;
+  
+  
+  // GM
+  //cerr << "LEAVING NAMGENE getNextCutEndPoint" << endl;
+  
+  
   return cutendpoint; 
 } 
 
@@ -1609,8 +1798,10 @@ void NAMGene::setPathAndProb(AnnoSequence *annoseq, FeatureCollection &extrinsic
 	sfc.prepare(annoseq, false);
 	sfc.computeHintedSites(annoseq->sequence);
 	sfc.prepareLocalMalus(annoseq->sequence);
-	prepareModels(annoseq->sequence, annoseq->length);
-	annoseq->anno->emiProb = getPathEmiProb(&(*(annoseq->anno->path)), &(*(annoseq->sequence)), sfc);
+	
+    prepareModels(annoseq->sequence, annoseq->length);
+
+    annoseq->anno->emiProb = getPathEmiProb(&(*(annoseq->anno->path)), &(*(annoseq->sequence)), sfc);
 	annoseq = annoseq->next;
     }
 }

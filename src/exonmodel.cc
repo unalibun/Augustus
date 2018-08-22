@@ -37,7 +37,6 @@
 /*
  * Initialisation of static data members
  */
-
 vector<Integer> ExonModel::patterncount[3];      // {0,1,2}x{acgt}^(k+1), the reading frame is 
                                                  // the positiion of the emitted (last) nucleotide
 vector<Integer> ExonModel::initpatterncount[3];
@@ -111,16 +110,84 @@ int             ExonModel::lenboostL = INT_MAX; // parameters for boosting lengt
 double          ExonModel::lenboostE = 0; // lengths above L are improved, the more the larger E is
 
 /* --- OpenReadingFrame methods ------------------------------------ */
+// GM solo per un semplice test temporaneo
+int OpenReadingFrame::getFsEntry(int pos)
+{
+	if(pos > -1 && pos < fsArr.size())
+		return fsArr[pos];
+
+	return -1;
+}
+	
+int OpenReadingFrame::getFsNum()
+{
+    return fsArr.size();
+}
 
 /*
- * constructor
- */
-OpenReadingFrame::OpenReadingFrame(const char *dna, int _max_exon_length, int _n) :
-    n(_n), max_exon_length(_max_exon_length)
+*   it is responsability of the caller to have verified the validity of fsSites and k parameters
+*   k-1 nts are shifted before the k-th which is the one at fsSites
+*/ 
+
+// shrinkback performedbydnaSwap itself
+// GM to decide what viable array should contain : 1351 1702 or 1351 1702+1 ??
+void OpenReadingFrame::shrinkSequence(const char* src, char* dst, int startAt, int endAt)
 {
-    nearestStopForward.resize(n);
-    nearestStopReverse.resize(n);
-    int stopcodpos, i;
+    // simply copy src into dst
+	// #idef SAVE_COMPUTATIONS computations : for(int i=startAt;i<=endAt;++i)
+	for(int i=0;i<n;++i)
+	    dst[i] = src[i];
+
+	if(startAt>=endAt)
+        return;
+ 
+    if(!fsArr.empty())
+    {
+		int j, i;
+
+		j=fsArr.size()-1;
+		
+		while(j>-1 && fsArr[j]>=endAt-3)
+			--j;
+
+		if(j<0)
+		{
+	        // simply copy src into dst
+    	    //for(i=startAt;i<=endAt;++i)
+        	 //    dst[i] = src[i];
+		}
+		else
+		{
+			// 2 is added because so far we expect ribosomes to skip the third nt
+			// +2 no longer used : for correct +1 fs we remove at fsArr[i]
+			int k, currentFs = /*2 +*/ fsArr[j]; // + j;        
+
+			
+			for(i=endAt, k=endAt;i>=startAt;--i)
+			{
+				if(i>currentFs)
+				{
+					dst[k] = src[i];
+					--k;
+				}
+				else
+				{
+
+					--j;
+
+					if(j>-1)
+						currentFs = /*2 +*/ fsArr[j]; //  + j;
+					else
+						currentFs = -1;
+				}
+			}
+		}
+	}
+}
+
+void OpenReadingFrame::updateStopNearest(const char *dna)
+{
+	int stopcodpos, i;
     stopcodpos=-1;
     for (i=0; i<=n - STOPCODON_LEN; i+=3) {
 	if (isStopcodon(dna+i)) 
@@ -157,24 +224,162 @@ OpenReadingFrame::OpenReadingFrame(const char *dna, int _max_exon_length, int _n
 	    stopcodpos = i;
 	nearestStopReverse[i] = stopcodpos;
     }
-    if (n>5) {
-	// nearestStopForward[n - STOPCODON_LEN] = nearestStopForward[n - STOPCODON_LEN - 3];
-	nearestStopForward[n - STOPCODON_LEN +1] = nearestStopForward[n - STOPCODON_LEN - 2];
-	nearestStopForward[n - STOPCODON_LEN +2] = nearestStopForward[n - STOPCODON_LEN - 1];
-	// nearestStopReverse[n - STOPCODON_LEN] = nearestStopReverse[n - STOPCODON_LEN - 3];
-	nearestStopReverse[n - STOPCODON_LEN +1] = nearestStopReverse[n - STOPCODON_LEN - 2];
-	nearestStopReverse[n - STOPCODON_LEN +2] = nearestStopReverse[n - STOPCODON_LEN - 1];
-    } else {// TODO (unwichtig)
+    
+	if (n>5) 
+	{
+		// nearestStopForward[n - STOPCODON_LEN] = nearestStopForward[n - STOPCODON_LEN - 3];
+		nearestStopForward[n - STOPCODON_LEN +1] = nearestStopForward[n - STOPCODON_LEN - 2];
+		nearestStopForward[n - STOPCODON_LEN +2] = nearestStopForward[n - STOPCODON_LEN - 1];
+		// nearestStopReverse[n - STOPCODON_LEN] = nearestStopReverse[n - STOPCODON_LEN - 3];
+		nearestStopReverse[n - STOPCODON_LEN +1] = nearestStopReverse[n - STOPCODON_LEN - 2];
+		nearestStopReverse[n - STOPCODON_LEN +2] = nearestStopReverse[n - STOPCODON_LEN - 1];
+    } 
+	else 
+	{
+		// TODO (unwichtig)
     }
 }
 
+// GM
+void OpenReadingFrame::readFsHintsFromFile(vector<int>& v)
+{
+	string filename = "fs.hints";
+	
+	ifstream infile;
+    infile.exceptions(ifstream::eofbit | istream::failbit | ifstream::badbit);
+    int site;
+
+	try
+    {
+        infile.open(filename);
+
+		infile >> site;
+		   
+        while(infile.eof() == false)
+        {
+			if(site>-1 && site<n)
+		   		v.push_back(site);
+			infile >> site;		   
+		}
+
+        infile.close();
+    }
+    catch(ifstream::failure e)
+	{
+		if(infile.is_open())
+			infile.close();
+	}
+
+	/*
+	1) verify fs list is sorted and does not contain any repeated value
+	2) also a linked list may replace the vector since no random access is required
+	
+
+	sort(v.begin(), v.end());
+	vector<int>::iterator it = unique(v.begin, v.end());
+	if(it!=v.end())
+		v.erase(it, v.end());
+	
+	*/
+}
+
+void OpenReadingFrame::updateFsNearest(const char *dna)
+{
+	if(fs == Fs::constitutive)
+	{
+		// simply copy nearestStopForward into nearestFsForward
+
+		for(int i=0;i<n;++i)
+			nearestFsForward[i] = nearestStopForward[i];
+	}
+	else if(fs == Fs::file)
+	{
+		// read expected fs from file hints.fs (to be replaced by gff hints)
+		int fscodpos, i;
+		// it can be rewritten in a more efficient way but so far it is used for the sake of testing
+		// and we do not care
+		
+		vector<int> tmpArr;
+		readFsHintsFromFile(tmpArr);
+		
+		fscodpos=-1;
+		for (i=0;i<n;i+=3) 
+		{
+			if(find(tmpArr.begin(), tmpArr.end(), i) != tmpArr.end()) 
+				fscodpos = i;
+			nearestFsForward[i] = fscodpos;
+		}
+		fscodpos=-1;
+		for(i=1; i<n;i+=3)
+		{
+			if(find(tmpArr.begin(), tmpArr.end(), i) != tmpArr.end()) 
+				fscodpos = i;
+			nearestFsForward[i] = fscodpos;
+		}
+		fscodpos=-1;
+		for(i=2;i<n;i+=3)
+		{
+			if(find(tmpArr.begin(), tmpArr.end(), i) != tmpArr.end()) 
+				fscodpos = i;
+			nearestFsForward[i] = fscodpos;
+		}
+		
+		
+		/*
+		want adjusting for reverse strand
+		fscodpos=-1;
+		for (i=0; i<=n - STOPCODON_LEN; i+=3) {
+		if (isRCStopcodon(dna+i))
+			stopcodpos = i;
+		nearestStopReverse[i] = stopcodpos;
+		}
+		stopcodpos=-1;
+		for (i=1; i<=n - STOPCODON_LEN; i+=3) {
+		if (isRCStopcodon(dna+i))
+			stopcodpos = i;
+		nearestStopReverse[i] = stopcodpos;
+		}
+		stopcodpos=-1;
+		for (i=2; i<=n - STOPCODON_LEN; i+=3) {
+		if (isRCStopcodon(dna+i))
+			stopcodpos = i;
+		nearestStopReverse[i] = stopcodpos;
+		}
+		*/
+	}
+}
 
 /*
+ * constructor
+ */
+OpenReadingFrame::OpenReadingFrame(const char *dna, int _max_exon_length, int _n, Fs _fs) :
+    n(_n), max_exon_length(_max_exon_length), fs(_fs)
+{
+    nearestStopForward.resize(n);
+    nearestStopReverse.resize(n);
+    nearestFsForward.resize(n, -1);
+    nearestFsReverse.resize(n, -1);
+	
+	updateStopNearest(dna);
+    updateFsNearest(dna);
+
+	// printNearestForward();
+
+}
+
+void OpenReadingFrame::enableFs(Fs _fs)
+{
+	fs = _fs;
+}
+
+
+/* TEMPORARILY RESTORE THE ORIGINAL ONE
  * Get the position furthest to the left of base such that with respect to 
  * frame at position base there is no stop codon in the window from 
  * leftmostExonBegin to base. If forward is false the reverse complement is taken.
  * Initialize the tables of stopcodons.
  */
+/*
 int OpenReadingFrame::leftmostExonBegin(int frame, int base, bool forward){
     int pos;
     if (forward) {
@@ -209,6 +414,147 @@ int OpenReadingFrame::leftmostExonBegin(int frame, int base, bool forward){
       leftmostbegin = base-max_allowed_len;
     return leftmostbegin;
 }
+*/
+
+void OpenReadingFrame::resetFsEntries()
+{
+	fsArr.clear();
+}
+
+/*
+ * use the original version accessing a new vector for begin/end which
+ * takes into account fs
+ * 
+ * Get the position furthest to the left of base such that with respect to 
+ * frame at position base there is no stop codon in the window from 
+ * leftmostExonBegin to base. If forward is false the reverse complement is taken.
+ * Initialize the tables of stopcodons.
+*/
+int OpenReadingFrame::leftmostExonBegin(int frame, int base, bool forward){
+    int pos;
+    if (forward) {
+	if (frame==0 || frame==1)
+	    pos=base-frame-3;
+	else 
+	    pos=base-frame;
+    } else {
+	if (frame==1 || frame==2)
+	    pos=base+frame-5;
+	else 
+	    pos=base-2;
+    }
+    
+    Integer leftmostbegin;
+    if (pos >= n)
+	pos -= 3*((pos-n+3)/3);
+    // alternativ: pos = n-3 + (pos-n)%3
+
+    if (pos >= 0) 
+		leftmostbegin = forward? nearestStopForward[pos]+1 : nearestStopReverse[pos]+1;
+    else 
+		leftmostbegin = 0;
+   
+
+    // this has the effect that no exon can be longer than max_exon_length
+    // which is actually not a necessary condition but it is easier this way
+    // The 10 is a security distance, because the biological exon can be longer than the inner sequence part 
+    int max_allowed_len = max_exon_length - Constant::ass_upwindow_size - Constant::ass_start - ASS_MIDDLE - DSS_MIDDLE - Constant::dss_start;
+    if (leftmostbegin < base-max_allowed_len)
+      leftmostbegin = base-max_allowed_len;
+    return leftmostbegin;
+}
+
+// GM test print
+void OpenReadingFrame::printNearestForward()
+{
+	cerr << "nearest stop:" << endl;
+	for(int i=0;i<n;i+=3)
+		cerr << "[" << i << "]=" << nearestStopForward[i] << 
+		"\t[" << i+1 << "]=" << nearestStopForward[i+1] << 
+		"\t[" << i+2 << "]=" << nearestStopForward[i+2] << endl;
+
+	cerr << endl;
+	cerr << "nearest fs:" << endl;
+	for(int i=0;i<n;i+=3)
+		cerr << "[" << i << "]=" << nearestFsForward[i] << 
+		"\t[" << i+1 << "]=" << nearestFsForward[i+1] << 
+		"\t[" << i+2 << "]=" << nearestFsForward[i+2] << endl;
+
+
+}
+
+// GM alternative to leftmostExonBegin when any fs is present
+int OpenReadingFrame::leftmostExonBeginFS(int frame, int base, bool forward)
+{
+    int pos;
+    if (forward) 
+	{
+		if (frame==0 || frame==1)
+	    	pos=base-frame-3;
+		else 
+	    	pos=base-frame;
+    } 
+	else 
+	{
+		if (frame==1 || frame==2)
+	    	pos=base+frame-5;
+		else 
+	    	pos=base-2;
+    }
+    
+    Integer leftmostbegin;
+    if (pos >= n)
+		pos -= 3*((pos-n+3)/3);
+    // alternativ: pos = n-3 + (pos-n)%3
+
+    int max_allowed_len = max_exon_length - Constant::ass_upwindow_size - Constant::ass_start - ASS_MIDDLE - DSS_MIDDLE - Constant::dss_start;
+
+	if(pos>0)
+	{
+	    bool stop = false;
+		int nearestStop, nearestFs;
+
+		do
+		{
+			// GM to be adjusted for reverse strand
+			nearestStop = forward? nearestStopForward[pos] : nearestStopReverse[pos];
+			nearestFs = forward? nearestFsForward[pos-1] : nearestFsReverse[pos-1];
+		
+			if(nearestStop < nearestFs)
+			{				
+				fsArr.push_back(nearestFs);
+				pos = nearestFs-3;	// -1 to account for +1 fs
+			}
+			else
+			{
+				leftmostbegin = nearestStop + 1;
+				stop = true;
+			}
+		}
+		while(pos>0 && !stop);
+
+		if(!stop)
+		{
+			if(pos==0)
+				leftmostbegin = forward? nearestStopForward[pos]+1 : nearestStopReverse[pos]+1;
+			else
+				leftmostbegin = 0;
+		}
+	}
+	else if(pos==0)
+		leftmostbegin = forward? nearestStopForward[pos]+1 : nearestStopReverse[pos]+1;
+	else
+		leftmostbegin = 0;
+	
+    // this has the effect that no exon can be longer than max_exon_length
+    // which is actually not a necessary condition but it is easier this way
+    // The 10 is a security distance, because the biological exon can be longer than the inner sequence part 
+    if (leftmostbegin < base-max_allowed_len)
+      leftmostbegin = base-max_allowed_len;
+
+	reverse(fsArr.begin(), fsArr.end());	
+    return leftmostbegin;
+}
 
 /*
  * containsInFrameStopcodon: not needed, can be implemented by GeneticCode
@@ -236,7 +582,6 @@ bool OpenReadingFrame::isStopcodon( const char* dna ){
 bool OpenReadingFrame::isRCStopcodon( const char* dna ){
     return GeneticCode::isRCStopcodon(dna);
 }
-
 
 /* --- ExonModel methods ------------------------------------------- */
 
@@ -913,41 +1258,16 @@ void ExonModel::updateToLocalGC(int from, int to){
  * this predecessor state in a most probable path ending in state "state" at position "base". 
  *
  */
+
+// Viterbi wrapper
 void ExonModel::viterbiForwardAndSampling(ViterbiMatrixType& viterbi, // matrix of viterbi variables
 					  ViterbiMatrixType& forward, // matrix of forward variables
 					  int state,
 					  int base,                   // end of the exon state
 					  AlgorithmVariant algovar,   // doViterbiOnly, doViterbiAndForward, doSampling or doBacktracking
-					  OptionListItem& oli) {
-/* 
- *  an example:
- *  pred.State |ATG               | <= (k+1)     | *** ... ***   | STP        |
- *             |start codon       | pattern prob | emission prob | stop codon |
- *             |                  |              | >= 0          |            |
- *                                 <---- inner sequence  ------->
- *  --------------------------------------------------------------------------
- *  predProb   |beginPartProb     | startSeqProb | restSeqProb   | endPartProb|
- *              <--------------------- lenPartProb -------------------------->
- * 
- */ 
-
-    Double fwdsum = 0;
-    Double maxProb = 0;
-    OptionsList *optionslist = NULL;
-    PP::ExonScorer* exonScorer = 0;
-    if (algovar==doSampling)
-	optionslist = new OptionsList();
-    bool checkSubstates = (profileModel != 0); // && isOnFStrand(etype) && etype != singleG
-
-    /*
-     * endPartProb
-     * probability of the last - fixed length - part of the exon:
-     * translation termination if the exon is a terminal exon
-     */
-    Double endPartProb = endPartEmiProb(base);
-    ViterbiSubmapType substates(state);
-    
-    /*
+					  OptionListItem& oli)
+{
+	/*
      * right is the rightmost position of the inner sequence part
      * just in front of the endPart
      * endOfBioExon is the position most downstream (wrt forward strand) of the biological exon
@@ -956,50 +1276,141 @@ void ExonModel::viterbiForwardAndSampling(ViterbiMatrixType& viterbi, // matrix 
     int endOfBioExon = base + baseOffset;
     int right = endOfBioExon - innerPartEndOffset;
     
-    /*
-     * If it is impossible that a (complete) exon ends here, return immediately.
-     */
-    
-    if (endPartProb <= 0 || right < 0) {
-	// viterbi[base].erase(state);
-	// if (needForwardTable(algovar))
-	//     forward[base].erase(state);
-	if (algovar == doSampling)
-	    throw ProjectError("ExonModel: Trying to sample from empty options list. Internal error.");
-	return;
-    }
-
-    /*
+	/*
      * Reading frame of the position "right"
      * win=0,1,2 is the reading frame of __ endOfBioExon+1 __
      * on the reverse strand, count backwards 
      */
-    int frameOfRight = isOnFStrand(etype) ? 
-	mod3(win - (endOfBioExon + 1) + right) : 
-	mod3(win +  endOfBioExon + 1  - right);
+	
+    int frameOfRight = isOnFStrand(etype) ? mod3(win - (endOfBioExon + 1) + right) : mod3(win +  endOfBioExon + 1  - right);
     
-    // Need this for protein pattern evaluation
-    // int endOfLastCodon = endOfBioExon - (isOnFStrand(etype) ? win : 2 - win);
-    // if (endOfLastCodon >= dnalen)
-    // 	checkSubstates=false;
-    if (endOfBioExon >= dnalen)
-	checkSubstates = false;
-
-     /*
+ /*
      * Determine the leftmost possible boundary of the inner sequence part.  
      * That is, determine the longest possible open reading frame.
      */
     int endOfNonStopcodon = (etype == terminal || etype == singleG) ?
 	endOfBioExon - STOPCODON_LEN : endOfBioExon;
     if (endOfNonStopcodon > dnalen-1) // to be safe in those rare cases
-	endOfNonStopcodon = dnalen-1;
+		endOfNonStopcodon = dnalen-1;
 
-    int frameOfEndOfNonStopcodon = isOnFStrand(etype) ?
-	mod3(win - 1 - endOfBioExon + endOfNonStopcodon) : 
-	mod3(win + 1 + endOfBioExon - endOfNonStopcodon);
+    int frameOfEndOfNonStopcodon = isOnFStrand(etype) ?	mod3(win - 1 - endOfBioExon + endOfNonStopcodon) : mod3(win + 1 + endOfBioExon - endOfNonStopcodon);
 
-    int ORFleft = orf->leftmostExonBegin(frameOfEndOfNonStopcodon, endOfNonStopcodon, isOnFStrand(etype));
 
+	m_numFs = 0;
+	m_endOfPred = -1;
+
+	// GM
+	int ORFleft;
+	// already read from the parent StateModel : orf->enableFs(s_fs);
+
+	// the case "not any fs" should be handled separately to the end of global comparison between
+	// fs and "not fs" to intrinsically establish the most likely of the two
+	if(s_fs != Fs::none)
+	{		
+		ORFleft = orf->leftmostExonBeginFS(frameOfEndOfNonStopcodon, endOfNonStopcodon, isOnFStrand(etype));
+		
+		m_numFs = orf->getFsNum();
+	
+		if(orf->getFsNum()>0)
+		{
+		
+			//	SAVE_COMPUTATIONS:
+			//	orf->shrinkSequence(sequence, sequenceFS, ORFleft, endOfNonStopcodon);
+			
+			orf->shrinkSequence(sequence, sequenceFS, 0, dnalen);
+
+			// SAVE_COMPUTATIONS:
+			//	swapDna(ORFleft, endOfNonStopcodon);
+			swapDna(0, dnalen);
+		
+		}
+
+		viterbiForwardAndSamplingHelper(viterbi, forward, state, base, endOfBioExon, right, frameOfRight, endOfNonStopcodon, frameOfEndOfNonStopcodon, ORFleft, algovar, oli);
+			
+		// restore original sequence !!
+		// SAVE COMPUTATION:
+		//	swapDna(ORFleft, endOfNonStopcodon);
+		
+		if(orf->getFsNum()>0)
+		{
+			swapDna(0, dnalen);
+			
+			orf->resetFsEntries();
+		}
+		
+		// in addition perform Viterbi as usual as no fs were present to establish
+		// the most likely parse among those subject to fs and those not
+		/*	
+			but we have to sort it out for backtracking : it won't work to repeat twice
+			Viterbi because two states are addedd instead of the one from the most likely 
+			path
+
+			orf->enableFs(Fs::none);
+			ORFleft = orf->leftmostExonBegin(frameOfEndOfNonStopcodon, endOfNonStopcodon, isOnFStrand(etype));
+			viterbiForwardAndSamplingHelper(viterbi, forward, state, base, endOfBioExon, right, frameOfRight, endOfNonStopcodon, frameOfEndOfNonStopcodon, ORFleft, algovar, oli);
+		*/
+	}
+	else // no fs option enabled : Augustus works as usual 
+	{
+		ORFleft = orf->leftmostExonBegin(frameOfEndOfNonStopcodon, endOfNonStopcodon, isOnFStrand(etype));
+		viterbiForwardAndSamplingHelper(viterbi, forward, state, base, endOfBioExon, right, frameOfRight, endOfNonStopcodon, frameOfEndOfNonStopcodon, ORFleft, algovar, oli);
+	}
+}
+
+// Viterbi work horse
+bool ExonModel::viterbiForwardAndSamplingHelper(ViterbiMatrixType& viterbi, // matrix of viterbi variables
+					  ViterbiMatrixType& forward, // matrix of forward variables
+					  int state,
+					  int base,                   // end of the exon state
+					  int endOfBioExon, 
+					  int right, 
+					  int frameOfRight, 
+					  int endOfNonStopcodon, 
+					  int frameOfEndOfNonStopcodon, 
+					  int ORFleft, 
+					  AlgorithmVariant algovar,   // doViterbiOnly, doViterbiAndForward, doSampling or doBacktracking
+					  OptionListItem& oli)
+{
+    Double fwdsum = 0;
+    Double maxProb = 0;
+    OptionsList *optionslist = NULL;
+    PP::ExonScorer* exonScorer = 0;
+    if (algovar==doSampling)
+		optionslist = new OptionsList();
+    bool checkSubstates = (profileModel != 0); // && isOnFStrand(etype) && etype != singleG
+
+	/*
+     * endPartProb
+     * probability of the last - fixed length - part of the exon:
+     * translation termination if the exon is a terminal exon
+     */
+	
+	//	#idef SAVE_COMPUTATIONS computations :
+	Double endPartProb = endPartEmiProb(base, ORFleft);
+    ViterbiSubmapType substates(state);
+	
+	/*
+     * If it is impossible that a (complete) exon ends here, return immediately.
+     */
+    if (endPartProb <= 0 || right < 0) 
+	{
+		// viterbi[base].erase(state);
+		// if (needForwardTable(algovar))
+		//     forward[base].erase(state);
+		if (algovar == doSampling)
+	    	throw ProjectError("ExonModel: Trying to sample from empty options list. Internal error.");
+		
+		return false;
+    }
+
+    
+    // Need this for protein pattern evaluation
+    // int endOfLastCodon = endOfBioExon - (isOnFStrand(etype) ? win : 2 - win);
+    // if (endOfLastCodon >= dnalen)
+    // 	checkSubstates=false;
+    if(endOfBioExon >= dnalen)
+		checkSubstates = false;
+    
     /*
      * get the extrinsic exonpart information about parts falling in this range
      * and with fitting reading frame
@@ -1050,6 +1461,7 @@ void ExonModel::viterbiForwardAndSampling(ViterbiMatrixType& viterbi, // matrix 
 	    }
 	}
     }
+
 #ifdef DEBUG
     if (algovar==doBacktracking)
 	oli.base = oli.state = -1;
@@ -1059,109 +1471,190 @@ void ExonModel::viterbiForwardAndSampling(ViterbiMatrixType& viterbi, // matrix 
     int startMax = endOfBioExon + innerPartOffset - min_exon_length + 1;
     int startMin;
     if (isRTerminalExon(etype) || etype == rsingleG ) 
-	startMin = startMax = ORFleft+2; // single gene start candidate position
-    else {
-	if (ORFleft <= 0)
-	    startMin = 0; // left truncated exon
-	else
-	    // innerPartOffset is beginOfStart - beginOfBioExon
-	    startMin = ORFleft + innerPartOffset; 
-	if (startMax > base + beginPartLen) // ensure that base>endOfPred
-	    startMax = base + beginPartLen;
+		startMin = startMax = ORFleft+2; // single gene start candidate position
+    else 
+	{
+		if (ORFleft <= 0)
+	    	startMin = 0; // left truncated exon
+		else
+	    	// innerPartOffset is beginOfStart - beginOfBioExon
+	    	startMin = ORFleft + innerPartOffset; 
+
+		if (startMax > base + beginPartLen) // ensure that base>endOfPred
+	    	startMax = base + beginPartLen;
     }
-    /*
+
+	// GM correction 
+	startMin += orf->getFsNum();
+
+	/*
      * loop over the length of the inner sequence
      */
+
     seqProb(-1,0,0);      // initialize the static variables
-    for (int beginOfStart = startMax; beginOfStart >= startMin; beginOfStart--) {
-	// main work done in this funcion call
-	int endOfPred = beginOfStart - beginPartLen -1;
-	Double notEndPartProb = notEndPartEmiProb(beginOfStart, right, frameOfRight, extrinsicexons);
-	if (notEndPartProb <= 0 || endOfPred >= dnalen) 
-	    continue;
-	// - initial or single exon starts right at pos 1
-	// - left truncated internal or terminal exon
-	const ViterbiColumnType& predForw =  forward[endOfPred >= 0 ? endOfPred : 0];
-	ViterbiColumnType& predVit = viterbi[endOfPred >= 0 ? endOfPred : 0];
-	// compute the maximum over the predecessor states probs times transition probability
-	int predReadingFrame;
-	int beginOfBioExon  = beginOfStart - innerPartOffset;
-	int exonLength = endOfBioExon - beginOfBioExon +1;
-	if (checkSubstates)
-	    exonScorer->newFirstCodon(beginOfBioExon);
+    
 	
-	vector<Ancestor>::const_iterator it;
-	for( it = ancestor.begin(); it != ancestor.end(); ++it ){
-	    int predState = it->pos;
-	    if (algovar == doSampling) {
-		if (predForw[predState] == 0)
-		    continue;
-	    } else
-		if (predVit.get(predState)==0)
-		    continue;
-	    StateType predStateType = (*stateMap)[predState];
-	    Double transEmiProb = it->val * endPartProb * notEndPartProb;
-	    predReadingFrame = stateReadingFrames[predStateType];
-	    if (etype == singleG || etype == rsingleG || etype == rterminal0 || etype == rterminal1 || 
-		etype == rterminal2 || etype == initial0 || etype == initial1 || etype == initial2 ||
-		// has been checked in notEndPartProb
-		win == mod3((isOnFStrand(etype))? predReadingFrame + exonLength: predReadingFrame - exonLength)) 
-	    {
-		// transition and exon length fit with respect to reading frame
-		if (needForwardTable(algovar)) {
-		    Double fwdsummand = predForw[predState] * transEmiProb.heated();
-		    if (algovar == doSampling) {
-			if (fwdsummand > 0) 
-			    optionslist->add(predState, endOfPred, fwdsummand);
-			continue; // next for
-		    } else 
-			fwdsum += fwdsummand;
+	for (int beginOfStart = startMax; beginOfStart >= startMin; beginOfStart--) 
+	{
+		// main work done in this funcion call
+		int endOfPred = beginOfStart - beginPartLen -1;
+		
+		// GM endOfPred is adjusted according to the number of fs in order to 
+		// consistently access dp matrices
+		int k = orf->getFsNum()-1;
+		while(k>-1 && endOfPred<orf->getFsEntry(k))
+		{
+			--endOfPred;
+			--k;
 		}
-		if (checkSubstates) {
-		    if (exonScorer->validSize())
-			try {
-			    exonScorer->score(predVit, predState, transEmiProb);
-			    if (algovar==doBacktracking && exonScorer->hasNewMax()) {
-				oli.base = endOfPred;
-				oli.resetPredEnd();
-				oli.state = getFullStateId(predState, exonScorer->getPredSubstate());
-			    }
-			} catch(NoSubmapFoundError e) {}
-		} 
-		Double predProb = predVit.get(predState) * transEmiProb;
-		if (predProb > maxProb) {
-		    maxProb = predProb;
-		    if (algovar==doBacktracking && !checkSubstates) {
-			oli.base = endOfPred;
-			oli.resetPredEnd();
-			oli.state = predState;
-		    }
+
+		Double notEndPartProb = notEndPartEmiProb(beginOfStart, right, frameOfRight, extrinsicexons);
+		
+		if(notEndPartProb <= 0 || endOfPred >= dnalen) 
+		{
+			continue;
 		}
-	    }
-	} // end of loop over predecessor state
-	if (Constant::overlapmode){ // potentially increase maxProb and change oli if overlap is better
-	    processOvlpOption(viterbi, forward, algovar, state, endOfPred, beginOfBioExon, maxProb,
-			      endPartProb * notEndPartProb, fwdsum, optionslist, oli, base);
-	    if (oli.predEnd >= base){
-		cerr << "possible infinite loop " << oli.predEnd << " " << base << " " << state << " " << oli.state << " " << endOfPred << endl;
-	    }
-	}
+
+		// - initial or single exon starts right at pos 1
+		// - left truncated internal or terminal exon
+
+		// prevents swapped dp matrix access
+		const ViterbiColumnType& predForw =  forward[endOfPred >= 0 ? endOfPred : 0];
+		ViterbiColumnType& predVit = viterbi[endOfPred >= 0 ? endOfPred : 0];
+		// compute the maximum over the predecessor states probs times transition probability
+		int predReadingFrame;
+		int beginOfBioExon  = beginOfStart - innerPartOffset;
+		int exonLength = endOfBioExon - beginOfBioExon + 1;
+		if (checkSubstates)
+			exonScorer->newFirstCodon(beginOfBioExon);
+		
+		vector<Ancestor>::const_iterator it;
+		for( it = ancestor.begin(); it != ancestor.end(); ++it )
+		{
+			int predState = it->pos;
+
+			if (algovar == doSampling) 
+			{
+				if (predForw[predState] == 0)
+					continue;
+			} 
+			else
+			{
+				if (predVit.get(predState)==0)
+				{
+					continue;
+				}
+			}
+
+			StateType predStateType = (*stateMap)[predState];
+			Double transEmiProb = it->val * endPartProb * notEndPartProb;
+			predReadingFrame = stateReadingFrames[predStateType];
+			
+			if (etype == singleG || etype == rsingleG || etype == rterminal0 || etype == rterminal1 || 
+			etype == rterminal2 || etype == initial0 || etype == initial1 || etype == initial2 ||
+			// has been checked in notEndPartProb
+			win == mod3((isOnFStrand(etype))? predReadingFrame + exonLength: predReadingFrame - exonLength)) 
+			{
+				// transition and exon length fit with respect to reading frame
+				if (needForwardTable(algovar)) {
+					Double fwdsummand = predForw[predState] * transEmiProb.heated();
+					if (algovar == doSampling) 
+					{
+						if (fwdsummand > 0) 
+						{
+							optionslist->add(predState, endOfPred /*-numFS already subtracted GM added -1 to cancel FS*/, fwdsummand);
+						}
+						continue; // next for
+					} 
+					else 
+					fwdsum += fwdsummand;
+				}
+				if (checkSubstates) 
+				{
+					if (exonScorer->validSize())
+					{
+						try 
+						{
+							exonScorer->score(predVit, predState, transEmiProb);
+							
+							if (algovar==doBacktracking && exonScorer->hasNewMax()) 
+							{
+								oli.base = endOfPred; /*already subtractedv -numFS;*/	/*GM added -1 to cancel FS*/
+								oli.resetPredEnd();
+								oli.state = getFullStateId(predState, exonScorer->getPredSubstate());
+
+								oli.fsArr.clear();
+								if(orf->getFsNum()>0)
+								{
+									oli.fsArr.resize(orf->getFsNum());
+									for(int i=0;i<orf->getFsNum();++i)
+										oli.fsArr[i] = orf->getFsEntry(i);
+								}
+							}
+						} 
+						catch(NoSubmapFoundError e) {}
+					}
+				} 
+				
+				Double predProb = predVit.get(predState) * transEmiProb;
+
+				if(predProb > maxProb) 
+				{
+					maxProb = predProb;
+
+					m_endOfPred = endOfPred;
+
+					if (algovar==doBacktracking && !checkSubstates) 
+					{
+						oli.base = endOfPred;
+						/* already subtracted -numFS;	*/
+						oli.resetPredEnd();
+						oli.state = predState;
+
+						oli.fsArr.clear();
+						if(orf->getFsNum()>0)
+						{
+							oli.fsArr.resize(orf->getFsNum());
+							for(int i=0;i<orf->getFsNum();++i)
+								oli.fsArr[i] = orf->getFsEntry(i);
+						}
+					}
+				}
+			} // end of conditional if over win etype etc
+		} // end of loop over predecessor state
+		
+		if (Constant::overlapmode)
+		{ // potentially increase maxProb and change oli if overlap is better
+			processOvlpOption(viterbi, forward, algovar, state, endOfPred /*already subtracted -numFS */, beginOfBioExon, maxProb,
+					endPartProb * notEndPartProb, fwdsum, optionslist, oli, base);
+			if (oli.predEnd >= base){
+			cerr << "possible infinite loop " << oli.predEnd << " " << base << " " << state << " " << oli.state << " " << endOfPred << endl;
+			}
+		}
+
     } // end of loop over the exon length
     
-    switch (algovar) {
-	case doSampling:
-	    optionslist->prepareSampling();
-	    try {
-		oli = optionslist->sample();
-	    } catch (ProjectError e) {
-		cerr << "Sampling error in exon model. state=" << state << " base=" << base << endl;
-		throw e;
-	    }
+
+    switch (algovar)
+	{
+		case doSampling:
+	    	optionslist->prepareSampling();
+	    	try 
+			{
+				oli = optionslist->sample();
+	    	} 
+			catch (ProjectError e) 
+			{
+				cerr << "Sampling error in exon model. state=" << state << " base=" << base << endl;
+				throw e;
+	    	}
 	    delete optionslist;
 	    break;
+	
 	case doViterbiAndForward:
 	    if (fwdsum > 0)
-		forward[base][state] = fwdsum;
+			forward[base][state] = fwdsum;
+	
 	case doViterbiOnly:
 	    if (checkSubstates) {
 		exonScorer->postProcessing(maxProb);
@@ -1176,12 +1669,22 @@ void ExonModel::viterbiForwardAndSampling(ViterbiMatrixType& viterbi, // matrix 
 		    viterbi[base].addSubstates(substates);
 		}
 	    }
-	    if (maxProb > 0)
-		viterbi[base][state] = maxProb;
-	    break;
+	    
+		// by default viterbi[base][state]=0 unless Viterbi has already run
+		if (maxProb > 0)
+		{
+			if(maxProb<viterbi[base][state])
+			{
+				cerr << "I was right  in" << endl;
+			}	
+			viterbi[base][state] = max(viterbi[base][state], maxProb);
+		}
+		break;
+	
 	case doBacktracking:
 	    if (checkSubstates) {
-		exonScorer->addMatches(oli.base + beginPartLen + 1 - innerPartOffset, endOfBioExon);
+			exonScorer->addMatches(oli.base + beginPartLen + 1 - innerPartOffset, endOfBioExon);
+
 #ifdef DEBUG
 		static_cast<PP::SingleTargetExonScorer*>(exonScorer)->
 		    checkResults(oli, viterbi, state, base, endPartProb, 
@@ -1193,6 +1696,9 @@ void ExonModel::viterbiForwardAndSampling(ViterbiMatrixType& viterbi, // matrix 
 	    break;
     }
     delete exonScorer;
+
+	return true;
+
 } // ExonModel::viterbiForwardAndSampling
 
 /*
@@ -1216,7 +1722,8 @@ void ExonModel::processOvlpOption(ViterbiMatrixType& viterbi, ViterbiMatrixType&
   // distinguish between maxOvlp (biological) and maximum for ovlp (states)
   // The actual biological overlap (that depends on the state combination) may not be larger than Constant::maxOvlp
   int maxStateOvlp = Constant::maxOvlp + 2 * trans_init_window;
-  for (int ovlp = 0; ovlp <= maxStateOvlp && endOfPred + ovlp >= 0 && endOfPred + ovlp < dnalen; ovlp++){
+  for (int ovlp = 0; ovlp <= maxStateOvlp && endOfPred + ovlp >= 0 && endOfPred + ovlp < dnalen; ovlp++)
+  {
     int endOfPred2 = endOfPred + ovlp;
     int endOfBioExon; // of left gene, depends on endOfPred2 and on type of exon
     int bioOvlp; // actual number of bases shared in the two exons
@@ -1226,58 +1733,78 @@ void ExonModel::processOvlpOption(ViterbiMatrixType& viterbi, ViterbiMatrixType&
     ViterbiColumnType& predVit = viterbi[endOfPred2 >= 0 ? endOfPred2 : 0]; 
     
     //cout << "state=" << state << " endOfPred=" << endOfPred << " endOfPred2=" << endOfPred2 << " maxProb=" << maxProb << endl;
-    for (it = ancestor.begin(); it != ancestor.end(); ++it ){
-      int predState = it->pos;
-      if (algovar == doSampling) {
-	if (predForw[predState] == 0)
-	  continue;
-      } else
-	if (predVit.get(predState)==0)
-	  continue; // predecessor state cannot end at this position
-      StateType predStateType = (*stateMap)[predState];
-      if (predStateType == igenic)
-	  continue; // makes no sense to overlap with intergenic region
-      endOfBioExon = endOfPred2  + getBaseOffset(predStateType);
-      bioOvlp = endOfBioExon - beginOfBioExon + 1;
-      if (bioOvlp < 0)
-	  lenProb = 1;
-      else if (bioOvlp <= Constant::maxOvlp) {
-	  if (isOnFStrand(etype) == isOnFStrand(predStateType))
-	      lenProb = Constant::head2tail_ovlp[bioOvlp];
-	  else if (isOnFStrand(etype))
-	      lenProb = Constant::head2head_ovlp[bioOvlp];
-	  else 
-	      lenProb = Constant::tail2tail_ovlp[bioOvlp];
-      } else
-	  lenProb = 0;
-      if (lenProb == 0)
-	  continue;
-      Double transEmiProb = it->val * emiProb * lenProb * lenCorrection;
-      if (needForwardTable(algovar)) {
-	  Double fwdsummand = predForw[predState] * transEmiProb.heated();
-	  if (algovar == doSampling) {
-	      if (fwdsummand > 0) 
-		  optionslist->add(predState, endOfPred, fwdsummand, endOfPred2);
-	      continue;
-	  } else 
-	      fwdsum += fwdsummand;
-      }
-      Double predProb = predVit.get(predState) * transEmiProb;
-      //cout << "possible predState=" << predState << " predProb=" << predProb << endl;
-      if (predProb > maxProb && endOfPred2 < base) {
-	  // cout << "# overlap improves at endOfPred=" << endOfPred << " endOfPred2=" << endOfPred2 
-	  //     << " state=" << state << " predState=" << predState << " ovlp=" << ovlp
-	  //     << " bioOvlp=" << bioOvlp << " lenProb=" << lenProb << endl;
-	  maxProb = predProb;
-	  if (algovar == doBacktracking) {
-	      oli.base = endOfPred;
-	      oli.predEnd = endOfPred2;
-	      oli.state = predState;
-	  }
-      }
+    for (it = ancestor.begin(); it != ancestor.end(); ++it )
+	{
+		int predState = it->pos;
+    	if (algovar == doSampling) 
+		{
+			if (predForw[predState] == 0)
+	  			continue;
+      	} 
+		else if (predVit.get(predState)==0)
+	  		continue; // predecessor state cannot end at this position
+      	
+		StateType predStateType = (*stateMap)[predState];
+      	if (predStateType == igenic)
+	  		continue; // makes no sense to overlap with intergenic region
+      	endOfBioExon = endOfPred2  + getBaseOffset(predStateType);
+      	bioOvlp = endOfBioExon - beginOfBioExon + 1;
+      
+	  	if (bioOvlp < 0)
+	  		lenProb = 1;
+      	else if (bioOvlp <= Constant::maxOvlp) 
+		{
+	  		if (isOnFStrand(etype) == isOnFStrand(predStateType))
+	      		lenProb = Constant::head2tail_ovlp[bioOvlp];
+	  		else if (isOnFStrand(etype))
+	      		lenProb = Constant::head2head_ovlp[bioOvlp];
+	  		else 
+	      		lenProb = Constant::tail2tail_ovlp[bioOvlp];
+      	} 
+		else
+	  		lenProb = 0;
+      	
+		if (lenProb == 0)
+	  		continue;
+      	
+		Double transEmiProb = it->val * emiProb * lenProb * lenCorrection;
+      	if (needForwardTable(algovar)) 
+		{
+	  		Double fwdsummand = predForw[predState] * transEmiProb.heated();
+	  		if (algovar == doSampling) 
+			{
+	      		if (fwdsummand > 0) 
+		  			optionslist->add(predState, endOfPred, fwdsummand, endOfPred2);
+	      		continue;
+	  		} 
+			else 
+	      		fwdsum += fwdsummand;
+      	}
+		Double predProb = predVit.get(predState) * transEmiProb;
+		//cout << "possible predState=" << predState << " predProb=" << predProb << endl;
+		if (predProb > maxProb && endOfPred2 < base) 
+		{
+			// cout << "# overlap improves at endOfPred=" << endOfPred << " endOfPred2=" << endOfPred2 
+			//     << " state=" << state << " predState=" << predState << " ovlp=" << ovlp
+			//     << " bioOvlp=" << bioOvlp << " lenProb=" << lenProb << endl;
+			maxProb = predProb;
+
+			if (algovar == doBacktracking) 
+			{
+				oli.base = endOfPred;
+				oli.predEnd = endOfPred2;
+				oli.state = predState;
+
+				// GM fsArr stays the same I suppose...it is only a matter of overlaps
+			}
+      	}
     }
   }
 }
+
+
+
+
 
 /*
  * ===[ ExonModel::endPartEmiProb ]=====================================
@@ -1287,7 +1814,8 @@ void ExonModel::processOvlpOption(ViterbiMatrixType& viterbi, ViterbiMatrixType&
  */
 
 Double ExonModel::endPartEmiProb(int end) const {
-    static Double endPartProb(0);
+
+	static Double endPartProb(0);
     Feature *feature;
     Double extrinsicEmiQuot(1);
     switch( etype ){
@@ -1370,7 +1898,8 @@ Double ExonModel::endPartEmiProb(int end) const {
 	    int dsspos = end + Constant::dss_start + 1;
 	    if (end == dnalen-1) {// exon is longer than dna, right truncated exon
 	      endPartProb = 1;  // in this case allow that there is no splice site consensus
-	    } else if ((dsspos + DSS_MIDDLE - 1 < dnalen && !isPossibleDSS(dsspos)) || 
+	    } 
+		else if ((dsspos + DSS_MIDDLE - 1 < dnalen && !isPossibleDSS(dsspos)) || 
 		       end + Constant::dss_start >= dnalen || 
 		       orf->leftmostExonBegin(win - 1, end + Constant::dss_start, true) >= end)
 		endPartProb = 0;
@@ -1409,10 +1938,154 @@ Double ExonModel::endPartEmiProb(int end) const {
 	        extrinsicEmiQuot = seqFeatColl->collection->malus(assF) * seqFeatColl->localSSMalus(assF, asspos, minusstrand);
 	}
 	    break;
+	
 	default:
 	    cerr << "ExonModel::viterbiAlgorithm: unknown alternative." << endl;
 	    endPartProb =  0;
     }
+
+    return endPartProb * extrinsicEmiQuot;
+}
+
+
+/*
+ * ===[ ExonModel::endPartEmiProb ]=====================================
+ * GM
+ * Alternative signature to avoid any need to update nearest stop array
+ * for testing phase then a better solution can be searched for
+ */
+
+Double ExonModel::endPartEmiProb(int end, int orfleft) const {
+
+	static Double endPartProb(0);
+    Feature *feature;
+    Double extrinsicEmiQuot(1);
+    switch( etype ){
+        case singleG: case terminal:
+  	{
+	    int stppos = end - STOPCODON_LEN + 1;
+	    if( stppos < 0 || stppos > dnalen-3 || !GeneticCode::isStopcodon(sequence + stppos) )
+	      endPartProb = 0;
+	    else { 
+		// assign probabilities to the stop codons
+		// human: taa 28%, tga 48%, tag 24%
+		if (strncmp(sequence + stppos, "taa", 3)==0)
+		    endPartProb = Constant::ochreprob;
+		else if (strncmp(sequence + stppos, "tag", 3)==0)
+		    endPartProb = Constant::amberprob;
+		else if (strncmp(sequence + stppos, "tga", 3)==0)
+		    endPartProb = Constant::opalprob;
+		else 
+		    throw ProjectError("ExonModel::endPartEmiProb: internal error, unknown stop codon");
+		// check if we have extrinsic information about a stop codon
+		feature = seqFeatColl->getFeatureListOvlpingRange(stopF, end-2, end , plusstrand);
+		if (feature) {
+		  while (feature) {
+		    if (feature->start <= end-2 && feature->end >= end)
+		      extrinsicEmiQuot *= feature->distance_faded_bonus(end-1);
+		    feature = feature->next;
+		  }
+		} else if (seqFeatColl->collection->hasHintsFile)
+		  extrinsicEmiQuot = seqFeatColl->collection->malus(stopF);
+		/*
+		feature = seqFeatColl->getFeatureAt(stopF, end, plusstrand); 
+		if (feature)
+		    extrinsicEmiQuot = feature->bonus;
+		else if (seqFeatColl->collection->hasHintsFile) {
+		    extrinsicEmiQuot = seqFeatColl->collection->malus(stopF);
+		    }*/
+	    }
+	}
+	break;
+	case rsingleG: case rinitial:
+	{
+	    int startpos = end - trans_init_window - STARTCODON_LEN + 1;
+	    if (startpos >= 0 && GeneticCode::isStartcodon(sequence + startpos, true)) {
+		endPartProb = GeneticCode::startCodonProb(sequence + startpos, true);
+		if (endPartProb > 0){
+		    if (startpos + STARTCODON_LEN + trans_init_window - 1 + tis_motif_memory < dnalen){
+			endPartProb *= transInitMotif->seqProb(sequence + startpos + STARTCODON_LEN, true, true);// HMM
+			if (transInitBinProbs.nbins >= 1) {
+			    int idx = GCtransInitBinProbs[gcIdx].getIndex(endPartProb);// map prob to CRF score
+			    if (inCRFTraining && (countEnd < 0 || (startpos >= countStart && startpos <= countEnd)))
+				GCtransInitBinProbs[gcIdx].addCount(idx);
+			    endPartProb = transInitBinProbs.avprobs[idx];
+			}
+		    }
+		    else
+			endPartProb = pow(0.25, (double)(dnalen-(startpos + STARTCODON_LEN)));
+		}
+	    } else 
+		endPartProb = 0;
+	    // check if we have extrinsic information about a reverse start codon
+	    feature = seqFeatColl->getFeatureListOvlpingRange(startF, startpos, startpos + STARTCODON_LEN - 1 , minusstrand); 
+	    if (feature) {
+	      while (feature) {
+		if (feature->start <= startpos && feature->end>= startpos + STARTCODON_LEN - 1)
+		  extrinsicEmiQuot *= feature->distance_faded_bonus(startpos + 1);
+		feature = feature->next;
+	      }
+	    } else if (seqFeatColl->collection->hasHintsFile)
+	      extrinsicEmiQuot = seqFeatColl->collection->malus(startF);
+	      
+	    //feature = seqFeatColl->getFeatureAt(startF, startpos + STARTCODON_LEN - 1 , minusstrand); 
+	    //if (feature)
+	    //	extrinsicEmiQuot = feature->bonus;
+	    //else if (seqFeatColl->collection->hasHintsFile)
+	    //	extrinsicEmiQuot = seqFeatColl->collection->malus(startF);
+	}
+	break;
+        case initial0: case initial1: case initial2: case internal0: case internal1: case internal2:
+	{
+	    int dsspos = end + Constant::dss_start + 1;
+	    if (end == dnalen-1) {// exon is longer than dna, right truncated exon
+	      endPartProb = 1;  // in this case allow that there is no splice site consensus
+	    } 
+		else if ((dsspos + DSS_MIDDLE - 1 < dnalen && !isPossibleDSS(dsspos)) || 
+		       end + Constant::dss_start >= dnalen || 
+		       orfleft /*orf->leftmostExonBegin(win - 1, end + Constant::dss_start, true)*/ >= end)
+		endPartProb = 0;
+	    else 
+		endPartProb = 1;
+	    feature = seqFeatColl->getFeatureListContaining(A_SET_FLAG(dssF), dsspos, plusstrand);
+	    if (feature) {
+		while (feature) {
+		    extrinsicEmiQuot *= feature->distance_faded_bonus(dsspos);
+		    feature = feature->next;
+		}
+	    } else if (seqFeatColl->collection->hasHintsFile)
+	        extrinsicEmiQuot = seqFeatColl->collection->malus(dssF) * seqFeatColl->localSSMalus(dssF, dsspos, plusstrand);
+	}
+	break;
+        case rterminal0: case rterminal1: case rterminal2: case rinternal0: case rinternal1: case rinternal2:
+	{
+	    int asspos = end + Constant::ass_end + 1;
+	    if (end == dnalen-1){ // exon is longer than dna, right truncated exon
+	      endPartProb = 1;  // in this case allow that there is no splice site consensus
+	    } else if (end + Constant::ass_end + ASS_MIDDLE < dnalen && isPossibleRASS(asspos)){
+#ifdef DEBUG
+		if (!seqFeatColl->validRASSPattern(sequence + asspos))
+		    throw ProjectError("pattern found is not valid");
+#endif
+		endPartProb = 1;
+	    } else 
+		endPartProb = 0;
+	    feature = seqFeatColl->getFeatureListContaining(A_SET_FLAG(assF), asspos, minusstrand);
+	    if (feature)
+		while (feature) {
+		    extrinsicEmiQuot *= feature->distance_faded_bonus(asspos);
+		    feature = feature->next;
+		}
+	    else if (seqFeatColl->collection->hasHintsFile)
+	        extrinsicEmiQuot = seqFeatColl->collection->malus(assF) * seqFeatColl->localSSMalus(assF, asspos, minusstrand);
+	}
+	    break;
+	
+	default:
+	    cerr << "ExonModel::viterbiAlgorithm: unknown alternative." << endl;
+	    endPartProb =  0;
+    }
+
     return endPartProb * extrinsicEmiQuot;
 }
 
@@ -1436,48 +2109,82 @@ Double ExonModel::notEndPartEmiProb(int beginOfStart, int right, int frameOfRigh
     Feature *feature;
     Double extrinsicQuot = 1;
 
+	// GM : for the sake of testing  a negative probability is returned conveying
+	// information about the type of error
+	double err = -100.0;
+
     /*
      * probability of the begin part
      */
     int beginOfBioExon = beginOfStart - innerPartOffset;
-    switch( etype ){
-	case singleG: case initial0: case initial1: case initial2:
+    switch( etype )
+	{
+		case singleG: case initial0: case initial1: case initial2:
+
 	    // start codon at the beginning?
-	    if (beginOfBioExon >= 0 && beginOfBioExon < dnalen - 2 &&
-		GeneticCode::isStartcodon(sequence + beginOfBioExon)){
-		beginPartProb = GeneticCode::startCodonProb(sequence + beginOfStart - STARTCODON_LEN);
-		if (beginPartProb > 0){
-		    // two cases ... . the normal one with enough sequence space before the gene
-		    int transInitStart = beginOfBioExon - trans_init_window;
-		    if (transInitStart > transInitMotif->k){
-			beginPartProb *= transInitMotif->seqProb(sequence+transInitStart);
-			if (transInitBinProbs.nbins >= 1) {
-			    int idx = GCtransInitBinProbs[gcIdx].getIndex(beginPartProb);// map prob to CRF score
-			    if (inCRFTraining && (countEnd < 0 || (transInitStart >= countStart && transInitStart <= countEnd)))
-				GCtransInitBinProbs[gcIdx].addCount(idx);
-			    beginPartProb = transInitBinProbs.avprobs[idx];
+	    if(beginOfBioExon >= 0 && beginOfBioExon < dnalen - 2 
+		&& GeneticCode::isStartcodon(sequence + beginOfBioExon))
+		{
+			beginPartProb = GeneticCode::startCodonProb(sequence + beginOfStart - STARTCODON_LEN);
+			
+			if (beginPartProb > 0)
+			{
+
+				// two cases ... . the normal one with enough sequence space before the gene
+				int transInitStart = beginOfBioExon - trans_init_window;
+				if (transInitStart > transInitMotif->k)
+				{
+					beginPartProb *= transInitMotif->seqProb(sequence+transInitStart);
+					if (transInitBinProbs.nbins >= 1) 
+					{
+						int idx = GCtransInitBinProbs[gcIdx].getIndex(beginPartProb);// map prob to CRF score
+						if (inCRFTraining && (countEnd < 0 || (transInitStart >= countStart && transInitStart <= countEnd)))
+							GCtransInitBinProbs[gcIdx].addCount(idx);
+						beginPartProb = transInitBinProbs.avprobs[idx];
+					}
+				} 
+				else
+				{
+					/* ... and the case where there is no place for the transInitMotif
+					* take emission probs of 1/4 for the rest up to the beginning of the seq
+					* endOfPred is negative in this case!
+					* Need this if the gene starts right after the sequence.
+					*/
+					beginPartProb *= pow(0.25, (double)(beginOfStart - STARTCODON_LEN));
+				}
+
+				feature = seqFeatColl->getFeatureListOvlpingRange(startF, beginOfStart-3, beginOfStart-1 , plusstrand); 
+				if (feature) 
+				{
+					while (feature) 
+					{
+						if (feature->start <= beginOfStart-3 && feature->end >= beginOfStart-1)
+							extrinsicQuot *= feature->distance_faded_bonus(beginOfStart-2);
+						feature = feature->next;
+					}
+				} 
+				else if (seqFeatColl->collection->hasHintsFile)
+					extrinsicQuot = seqFeatColl->collection->malus(startF);
 			}
-		    } else {
-			/* ... and the case where there is no place for the transInitMotif
-			 * take emission probs of 1/4 for the rest up to the beginning of the seq
-			 * endOfPred is negative in this case!
-			 * Need this if the gene starts right after the sequence.
-			 */
-			beginPartProb *= pow(0.25, (double)(beginOfStart - STARTCODON_LEN));
-		    }
-		    feature = seqFeatColl->getFeatureListOvlpingRange(startF, beginOfStart-3, beginOfStart-1 , plusstrand); 
-		    if (feature) {
-			while (feature) {
-			    if (feature->start <= beginOfStart-3 && feature->end >= beginOfStart-1)
-				extrinsicQuot *= feature->distance_faded_bonus(beginOfStart-2);
-			    feature = feature->next;
+			else
+				err = -2.1;
+	    } 
+		else	// GM else branch addedd to tell apart different kinds of errors 
+		{
+			beginPartProb = 0;
+			
+			if(beginOfBioExon < 0)
+				err = -2.2;
+			if(beginOfBioExon < dnalen - 2)
+				err = -2.3;
+			if(!GeneticCode::isStartcodon(sequence + beginOfBioExon))
+			{
+				err = -2.4;
 			}
-		    } else if (seqFeatColl->collection->hasHintsFile)
-			extrinsicQuot = seqFeatColl->collection->malus(startF);
-		}
-	    } else 
-		beginPartProb = 0; 
+		} 
 	    break;
+
+
 	case terminal: case internal0: case internal1: case internal2:
 	    if (beginOfStart > 0) {
 		// only a shortcut if there is no possible ass at the right position:
@@ -1556,8 +2263,9 @@ Double ExonModel::notEndPartEmiProb(int beginOfStart, int right, int frameOfRigh
 	    break;
     }
 
+
     if (!(beginPartProb > 0)) 
-	return 0;
+		return err;
 	
     /*
      * sequence emission probability: restSeqProb
@@ -1620,7 +2328,8 @@ Double ExonModel::notEndPartEmiProb(int beginOfStart, int right, int frameOfRigh
 	}
 
 	switch( etype ){
-	    case singleG:
+	    
+		case singleG:
 		/*
 		 * | initial pattern | initial content model | content model |
 		 *   <---   k   --->
@@ -1632,6 +2341,7 @@ Double ExonModel::notEndPartEmiProb(int beginOfStart, int right, int frameOfRigh
 		    initialSeqProb(endOfStart+1, endOfInitial, mod3(frameOfRight-right+endOfInitial)) *
 		    seqProb(endOfInitial+1, right, frameOfRight);
 		break;
+
 	    case initial0: case initial1: case initial2:
 		/*
 		 * | initial pattern | initial content model | content model | eterminal model |
@@ -1732,18 +2442,29 @@ Double ExonModel::notEndPartEmiProb(int beginOfStart, int right, int frameOfRigh
      */
     Double lenPartProb;
     int endOfBioExon = right + innerPartEndOffset;
-    int exonLength = endOfBioExon - beginOfBioExon + 1;
+	
+	// 	GM da correggere per multiple fs : non serve perché beginOfBioExon scans the already shrunk seq
+	// 	int crossedFs = 0;
+	// 	if(orf->getFsNum()>0 && beginOfBioExon<orf->getFsEntry(0) && orf->getFsEntry(0)<endOfBioExon)
+	//		crossedFs = 1;
+
+    int exonLength = endOfBioExon - beginOfBioExon + 1; // - crossedFs;
 
     if (exonLength < 1) {
 	lenPartProb = 0;
     } else{
 	switch( etype ){
-	    case singleG: case rsingleG:
+	    
+		case singleG: case rsingleG:
 		if (exonLength%3 == 0)
 		    lenPartProb = 3*lenDistSingle[exonLength];
 		else
-		    lenPartProb = 0;
+		{
+			lenPartProb = 0;
+			err = -1.0;	// GM
+		}
 		break;
+
 	    case initial0: case initial1: case initial2:
 		if (exonLength%3 == win && exonLength > 2) 
 		    lenPartProb = 3*lenDistInitial[exonLength];
@@ -1872,7 +2593,14 @@ Double ExonModel::notEndPartEmiProb(int beginOfStart, int right, int frameOfRigh
 	if (!CDSSupport)
 	    extrinsicQuot *= seqFeatColl->collection->malus(CDSF);
     }
-    return beginPartProb * restSeqProb * lenPartProb * extrinsicQuot;
+
+	// GM
+	Double res = beginPartProb * restSeqProb * lenPartProb * extrinsicQuot;
+
+	if(!(res>0))
+		return err;
+
+    return res;
 }
 
 
@@ -1904,7 +2632,7 @@ Double ExonModel::emiProbUnderModel(int begin, int end) const {
     int beginOfBioExon = beginOfStart - innerPartOffset;
     
     if( !(endPartProb > 0) || (right < 0))
-	return 0;
+		return 0;
     
      /*
      * Reading frame of the position "right"
@@ -1916,10 +2644,10 @@ Double ExonModel::emiProbUnderModel(int begin, int end) const {
 	mod3(win +  endOfBioExon + 1  - right);
     
     // Determine the leftmost possible boundary of the inner sequence part.  
-    int left = orf->leftmostExonBegin(frameOfRight, right, isOnFStrand(etype));
-    
+	int left = orf->leftmostExonBegin(frameOfRight, right, isOnFStrand(etype));
+	
     if (beginOfStart < left) // e.g. a stop codon in the reading frame
-	return 0;
+		return 0;
     /*
      * get the extrinsic exonpart information about parts falling in this range
      * and with fitting reading frame

@@ -43,7 +43,7 @@ string outputfilename, errorfilename;
  * props: contains the parameters
  */ 
 void evaluateOnTestSet(AnnoSequence *annoseq, NAMGene &namgene, FeatureCollection &extrinsicFeatures, 
-		       Strand strand);
+		       Strand strand, Fs fs);
 
 /*
  * predictOnInputSequences
@@ -55,7 +55,7 @@ void evaluateOnTestSet(AnnoSequence *annoseq, NAMGene &namgene, FeatureCollectio
  * props: contains the parameters
  */
 void predictOnInputSequences(AnnoSequence *seq, NAMGene &namgene, FeatureCollection &extrinsicFeatures, 
-			     Strand strand);
+			     Strand strand, Fs fs);
 
 
 /*
@@ -95,6 +95,7 @@ int main( int argc, char* argv[] ){
     string     commandline;
     Strand     strand = bothstrands; // default
     int        errorcode = 0;
+	Fs		   fs = Fs::none;
 
     LLDouble::setOutputPrecision(3);
 
@@ -189,10 +190,24 @@ int main( int argc, char* argv[] ){
 	      cerr << "# Unknown option for strand: " << strandstr << endl;
 	  } catch (...){} // take default strand
 	
+	try{
+		fs = Fs::none;
+		
+	    string fsstr = Properties::getProperty("fs");
+	    if (fsstr == "constitutive" || fsstr == "const" || fsstr =="c")
+	      fs = Fs::constitutive;
+	    else if (fsstr == "file" || fsstr == "f")
+	      fs = Fs::file;
+	    else if (!(fsstr == ""))
+	      cerr << "# Unknown option for frameshifting: " << fsstr << endl;
+	  	
+	  } catch (...){} // allow no fs
+	
 	  if(mea_prediction)
 	    cout <<"# Using MEA approach (Maximizing expected accuracy)."<<endl;
 
-	  if (gbank.fileType() == fasta) {
+	  if (gbank.fileType() == fasta) 
+	  {
 	    /*
 	     * Just predict the genes for every sequence in the file.
 	     */
@@ -204,9 +219,11 @@ int main( int argc, char* argv[] ){
 	    }
 	    AnnoSequence *testsequence = gbank.getSequenceList();
 	    cutRelevantPiece(testsequence);
-	    predictOnInputSequences(testsequence, namgene, extrinsicFeatures, strand);
+	    predictOnInputSequences(testsequence, namgene, extrinsicFeatures, strand, fs);
 	    AnnoSequence::deleteSequence(testsequence);
-	  } else if (gbank.fileType() == genbank) {
+	  } 
+	  else if (gbank.fileType() == genbank)
+	  {
 	    /*
 	     * Sequences were already annotated. Predict and also check the accuracy.
 	     */
@@ -216,7 +233,7 @@ int main( int argc, char* argv[] ){
 	    AnnoSequence *annoseq = gbank.getAnnoSequenceList();
 	    cutRelevantPiece(annoseq);
 	    if (!checkExAcc)
-	      evaluateOnTestSet(annoseq, namgene, extrinsicFeatures, strand);
+	      evaluateOnTestSet(annoseq, namgene, extrinsicFeatures, strand, fs);
 	    else { // do not predict just check the accuracy of the extrinsic information
 		   // without deleting for redundancies
 	      checkExtrinsicAccuracy(annoseq, namgene, extrinsicFeatures);
@@ -248,7 +265,7 @@ int main( int argc, char* argv[] ){
  */
 
 void evaluateOnTestSet(AnnoSequence *annoseq, NAMGene &namgene, FeatureCollection &extrinsicFeatures, 
-		       Strand strand){
+		       Strand strand, Fs fs){
     int dnaproben = 0;
     Double quotient; 
     Evaluation eval;
@@ -272,7 +289,8 @@ void evaluateOnTestSet(AnnoSequence *annoseq, NAMGene &namgene, FeatureCollectio
 	}
     }
     // to output the annotated amino acid sequence:
-    if (noprediction){
+    if (noprediction)
+	{
         namgene.setPathAndProb(annoseq, extrinsicFeatures);
 	while( annoseq ){
 	    //cout << ">" << annoseq->seqname << endl;
@@ -282,7 +300,8 @@ void evaluateOnTestSet(AnnoSequence *annoseq, NAMGene &namgene, FeatureCollectio
 	}
     }
 
-    while( annoseq ){
+    while( annoseq )
+	{
 	dnaproben++;
 	if (verbosity) {
 	    cout << "#\n# ----- sequence number " << dnaproben << " (length = "
@@ -314,7 +333,8 @@ void evaluateOnTestSet(AnnoSequence *annoseq, NAMGene &namgene, FeatureCollectio
 	    cout << "both strands" << endl;
 	if (singlestrand)
 	    cout << "# Overlapping genes on opposite strand were allowed." << endl;	    
-	genes = namgene.doViterbiPiecewise(sfc, annoseq, strand); 
+	
+	genes = namgene.doViterbiPiecewise(sfc, annoseq, strand, fs); 
 	ende = clock();
 	total += (double) (ende-anfang) / CLOCKS_PER_SEC;
 	//cout << "time " << (double) (ende-anfang) / CLOCKS_PER_SEC << ", seqlen=" << annoseq->length << endl;
@@ -364,7 +384,7 @@ void evaluateOnTestSet(AnnoSequence *annoseq, NAMGene &namgene, FeatureCollectio
  */
 
 void predictOnInputSequences(AnnoSequence *seq, NAMGene &namgene, FeatureCollection &extrinsicFeatures, 
-			     Strand strand){
+			     Strand strand, Fs fs){
     int dnaproben = 0;
     int successfull = 0;
     AnnoSequence *curseq;
@@ -381,64 +401,71 @@ void predictOnInputSequences(AnnoSequence *seq, NAMGene &namgene, FeatureCollect
 	cout << "# We have hints for " << anz << " sequence" << (anz!=1? "s ": " ") << "and for " 
 	     << numC << " of the sequences in the input set." << endl;
     }
-	    
-    while( seq ){
-	dnaproben++;
-	curseq = seq;
-	seq = seq->next;  
-	curseq->next = NULL;
-	if (verbosity)
-	    cout << "#\n# ----- prediction on sequence number " << dnaproben << " (length = "
-		 << strlen(curseq->sequence) << ", name = "
-		 << curseq->seqname << ") -----" << endl << "#" << endl;
-	try {
-	    /*
-	     * check for extrinsic information about this sequence
-	     */
-	    SequenceFeatureCollection& sfc = extrinsicFeatures.getSequenceFeatureCollection(curseq->seqname);
-	    sfc.prepare(curseq, verbosity>0 && !(Gene::gff3));
-	    bool singlestrand = false; // use not the shadow states
-	    try {
-		singlestrand = (Properties::getIntProperty("singlestrand") == 1);
-	    } catch (...) {}
 	
-	    cout << "# Predicted genes for sequence number " << dnaproben <<  " on ";
-	    if (strand==plusstrand)
-		cout << "forward strand" << endl;
-	    else if (strand==minusstrand)
-		cout << "reverse strand" << endl;
-	    else 
-		cout << "both strands" << endl;
-	    if (singlestrand)
-		cout << "# Overlapping genes on opposite strand are allowed." << endl;
+	// GM temporarily reads one fs for each sequence and passes it with the sequence
+	// it works for FASTA only
+	
+    while( seq )
+	{
+		dnaproben++;
+		curseq = seq;
+		seq = seq->next;  
+		curseq->next = NULL;
+		if (verbosity)
+			cout << "#\n# ----- prediction on sequence number " << dnaproben << " (length = "
+			<< strlen(curseq->sequence) << ", name = "
+			<< curseq->seqname << ") -----" << endl << "#" << endl;
+		try {
+			/*
+			* check for extrinsic information about this sequence
+			*/
+			SequenceFeatureCollection& sfc = extrinsicFeatures.getSequenceFeatureCollection(curseq->seqname);
+			sfc.prepare(curseq, verbosity>0 && !(Gene::gff3));
+			bool singlestrand = false; // use not the shadow states
+			try {
+			singlestrand = (Properties::getIntProperty("singlestrand") == 1);
+			} catch (...) {}
+		
+			cout << "# Predicted genes for sequence number " << dnaproben <<  " on ";
+			if (strand==plusstrand)
+				cout << "forward strand" << endl;
+			else if (strand==minusstrand)
+				cout << "reverse strand" << endl;
+			else 
+				cout << "both strands" << endl;
+			
+			if (singlestrand)
+				cout << "# Overlapping genes on opposite strand are allowed." << endl;
+			
+			genes = namgene.doViterbiPiecewise(sfc, curseq, strand, fs);
 
-	    genes = namgene.doViterbiPiecewise(sfc, curseq, strand);
+			try {
+			if (Properties::getBoolProperty("emiprobs")){ // get emission probs (special request from Ingo Ebersberger)
+				try {
+				Annotation *a = new Annotation(), *olda = curseq->anno;
+				a->genes = genes;
+				curseq->anno = a;
+				namgene.setPathAndProb(curseq, extrinsicFeatures); 
+				cout << "# joint probability of gene structure and sequence in " << 
+					Properties::getProperty(SPECIES_KEY) << " model: " << curseq->anno->emiProb << endl;
+				curseq->anno = olda;
+				} catch (ProjectError e){
+				cerr << e.getMessage() << endl << "Error: Could not compute the emission probabilities (--emiprobs)" << endl;
+				}
+			}
+			} catch (...) {}
 
-	    try {
-		if (Properties::getBoolProperty("emiprobs")){ // get emission probs (special request from Ingo Ebersberger)
-		    try {
-			Annotation *a = new Annotation(), *olda = curseq->anno;
-			a->genes = genes;
-			curseq->anno = a;
-			namgene.setPathAndProb(curseq, extrinsicFeatures); 
-			cout << "# joint probability of gene structure and sequence in " << 
-			    Properties::getProperty(SPECIES_KEY) << " model: " << curseq->anno->emiProb << endl;
-			curseq->anno = olda;
-		    } catch (ProjectError e){
-			cerr << e.getMessage() << endl << "Error: Could not compute the emission probabilities (--emiprobs)" << endl;
-		    }
+			Transcript::destroyGeneSequence(genes); // don't need them anymore after they are printed
+			successfull++;
+		} 
+		catch (ProjectError& err )
+		{
+			if (successfull < 1)
+			throw err;
+			else 
+			cerr << "\n augustus: ERROR\n\t" << err.getMessage( ) << "\n\n";
 		}
-	    } catch (...) {}
-
-	    Transcript::destroyGeneSequence(genes); // don't need them anymore after they are printed
-	    successfull++;
-	} catch (ProjectError& err ){
-	    if (successfull < 1)
-		throw err;
-	    else 
-		cerr << "\n augustus: ERROR\n\t" << err.getMessage( ) << "\n\n";
-	}
-	curseq->next = seq;
+		curseq->next = seq;
     }
 }
 

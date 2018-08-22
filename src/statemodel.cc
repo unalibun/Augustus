@@ -34,12 +34,20 @@ int                        StateModel::dnalen = -1;
 int                        StateModel::countStart = -1;
 int                        StateModel::countEnd = -1;
 const char*                StateModel::sequence = NULL;
+char*		               StateModel::sequenceFS = NULL;
 SequenceFeatureCollection* StateModel::seqFeatColl = NULL;
 PP::SubstateModel*         StateModel::profileModel = NULL;
 const vector<StateType>*   StateModel::stateMap = NULL;
 int                        StateModel::activeWinLen = 1;
 int                        StateModel::gcIdx = 0;
 ContentStairs*             StateModel::cs = NULL;
+int						   StateModel::singleFsSite = -1;
+Fs 						   StateModel::s_fs = Fs::none;
+int 					   StateModel::m_numFs = 0;
+int 					   StateModel::m_endOfPred = 0;
+int 					   StateModel::m_error = 0;
+
+
 
 /* --- StateModel methods ------------------------------------------ */
 
@@ -197,10 +205,55 @@ void StateModel::computeEmiFromPat(const vector<Double>& patprobs, vector<Double
     }
 }
 
+// GM
+void StateModel::setFs(Fs fs)
+{
+	s_fs = fs;
+}
+
+void StateModel::setSwapSeq(char* dnaFS)
+{
+	sequenceFS = dnaFS;
+}
+
+// GM
+
+int StateModel::getEndOfPred()
+{
+	return m_endOfPred;
+}
+
+int StateModel::getNumFs()
+{
+	return m_numFs;
+}
+
+int StateModel::getError()
+{
+	return m_error;
+}
+
+
+void StateModel::swapDna(int startAt, int endAt)
+{
+	// a swap of pointers should be used instead
+	// but the absence of any side effect is to be assessed before doing so 
+	char* pt = const_cast<char*>(sequence);
+
+	for(int tmp, i=startAt;i<=endAt;++i)
+	{
+		tmp = sequenceFS[i];
+		sequenceFS[i] = pt[i];
+		pt[i] = tmp;
+
+		// aware const-cast removal
+	}
+}
+
 // this is stuff that needs to be called once for each new sequence
-void StateModel::prepareViterbi(const char* dna, int len, 
-				const vector<StateType>& smap) {
+void StateModel::prepareViterbi(const char* dna, int len, const vector<StateType>& smap) {
     sequence = dna;
+	// sequenceFS = dnaFS;
     dnalen = len;
     stateMap = &smap; // needed in exonmodel to determine predecessor type
     if (profileModel) {
@@ -488,7 +541,8 @@ void EOPList::decrement(int &endOfPred){
 
 
 void EOPList::update(int endOfPred){
-    if (possibleEndOfPreds.empty()) {
+    
+if (possibleEndOfPreds.empty()) {
 	possibleEndOfPreds.push_front(endOfPred);
 	return;
     }

@@ -308,7 +308,16 @@ State *State::getBiologicalState() {
     bioState->hasScore = hasScore;
     bioState->apostprob = apostprob;
     bioState->truncated = truncated;
-    return bioState;
+    
+	// GM
+	if(fsArr.size() != bioState->fsArr.size())
+	{
+		bioState->fsArr.resize(fsArr.size());
+		for(int k=0;k<fsArr.size();++k)
+			bioState->fsArr[k] = fsArr[k];
+	}
+	
+	return bioState;
 }
 
 
@@ -352,20 +361,21 @@ void State::includeFrameModIntoType(){
  * @memo A path through the Hidden-Markov-Model states
  * @author Mario Stanke
  */
+// GM changed cout into cerr
 void StatePath::print() {
     State* cur=first;
     if (seqname != "")
-	cout << seqname << endl;
-    cout << setw(25)<< "type" << "\t" << "state id" << "\t" << setw(8) << "begin" << "\t" << setw(8) << "end" << "\t" << setw(8) << "meanprob" << "\t"
+	cerr << seqname << endl;
+    cerr << setw(25)<< "type" << "\t" << "state id" << "\t" << setw(8) << "begin" << "\t" << setw(8) << "end" << "\t" << setw(8) << "meanprob" << "\t"
 	 << setw(16) << "prob" << endl;
     while(cur) {
-	cout << setw(25) << stateTypeNames[cur->type] << "\t" <<  setw(8) << cur->type << "\t" << setw(8)
+	cerr << setw(25) << stateTypeNames[cur->type] << "\t" <<  setw(8) << cur->type << "\t" << setw(8)
 	     << cur->begin << "\t" << setw(8) << cur->end << "\t" << setw(8);
 	if (cur->end >= cur->begin)
-	    cout << (cur->prob).getRoot(cur->end-cur->begin+1);
+	    cerr << (cur->prob).getRoot(cur->end-cur->begin+1);
 	else
-	    cout << "?";
-	cout << "\t" << setw(9) << cur->prob << endl;
+	    cerr << "?";
+	cerr << "\t" << setw(9) << cur->prob << endl;
 	cur = cur->next;
     }
 }
@@ -402,7 +412,8 @@ bool StatePath::operator< (const StatePath &other) const{
  * StatePath::projectOntoGeneSequence
  * makes a sequence of (possibly partial) genes out of this state path
  */
-Transcript* StatePath::projectOntoGeneSequence (const char *genenames){
+Transcript* StatePath::projectOntoGeneSequence (const char *genenames)
+{
     State* curState = first, *anIntron = NULL, *lastIntron = NULL, *lastExon = NULL;
     int genenumber = 1;
     Gene *aGene = NULL;
@@ -410,279 +421,472 @@ Transcript* StatePath::projectOntoGeneSequence (const char *genenames){
     State *last5utrexon = NULL, *last3utrexon = NULL, *utrexon = NULL;
     list<PP::Match>::iterator protIt = proteinMatches.begin();
     // check whether we have an incomplete gene beginning with an intron in the CDS
-    if (curState && isCodingIntron(curState->type)){
-	anIntron = new State();
-	anIntron->begin = curState->begin;
-	anIntron->type = isOnFStrand(curState->type)? intron_type : rintron_type;
-	anIntron->truncated |= curState->truncated;
-	while (curState->next && isCodingIntron(curState->next->type))
-	    curState = curState->next;
-	anIntron->end = curState->end;
-	anIntron->truncated |= curState->truncated; // could theoretically be both left and right truncated
-	aGene = new Gene();
-	aGene->introns = lastIntron = anIntron->getBiologicalState();
-	aGene->transstart = lastIntron->begin; // if gene starts with intron then let this be the transcript start
-    }
-    while (curState != NULL) {
-	while (curState && !isExon(curState->type))
-	    curState = curState->next;
 
-	if (curState != NULL) {
-	    if (isNc(curState->type)){ // noncoding gene
-		aTx = new Transcript();
-		aTx->strand = isOnFStrand(curState->type)? plusstrand : minusstrand;
-		if (curState->type == ncsingle || curState->type == rncsingle) { // no introns, just 1 exon
-		    lastExon = aTx->exons = curState->getBiologicalState();
+    if (curState && isCodingIntron(curState->type))
+	{
+		// cerr << "[1] curState && isCodingIntron(" << curState->type << ")" << endl;
+		
+		anIntron = new State();
+		anIntron->begin = curState->begin;
+		anIntron->type = isOnFStrand(curState->type)? intron_type : rintron_type;
+		anIntron->truncated |= curState->truncated;
+		while (curState->next && isCodingIntron(curState->next->type))
+			curState = curState->next;
+		anIntron->end = curState->end;
+		anIntron->truncated |= curState->truncated; // could theoretically be both left and right truncated
+		aGene = new Gene();
+		aGene->introns = lastIntron = anIntron->getBiologicalState();
+		aGene->transstart = lastIntron->begin; // if gene starts with intron then let this be the transcript start
+    }
+    
+	while (curState != NULL) 
+	{
+		while (curState && !isExon(curState->type))
 		    curState = curState->next;
-		} else { // multi-exon or incomplete noncoding gene
-		    lastExon = NULL;
-		    if (curState->type != ncinit && curState->type != rncterm)
-			aTx->complete = false;
-		    aTx->exons = lastExon = curState->getBiologicalState();
-		    curState = curState->next;
-		    if (isNc(curState->type)){ //my be intergenic if starting with incomplete noncoding gene
-		       while (curState && curState->type != ncterm && curState->type != rncinit) {
-			  if (isIntron(curState->type)) {
-			     anIntron = new State();
-			     anIntron->begin = curState->begin;
-			     anIntron->type = isOnFStrand(curState->type)? intron_type : rintron_type;
-			     while (curState->next && isIntron(curState->next->type))
-				curState = curState->next;
-			     anIntron->end = curState->end;
-			     anIntron->truncated = curState->truncated;
-			     if (aTx->introns == NULL) {
-				aTx->introns = lastIntron = anIntron->getBiologicalState();
-			     } else {
-				lastIntron = lastIntron->next = anIntron->getBiologicalState();
-			     }
-			     if (lastIntron->end > aTx->transstart)
-				aTx->transend = lastIntron->end; // if gene ends with intron then let this be the transcript end
-			  } else if (curState->type == ncinternal || curState->type == rncinternal) {
-			     lastExon = lastExon->next = curState->getBiologicalState();
-			  } else {
-			     print();
-			     throw ProjectError("state path doesn't constitute a valid gene (noncoding)");
-			  }
-			  curState = curState->next;
-		       }
-		       if (curState == NULL) {
-			  aTx->complete = false;
-		       } else { // ncterminal or rncinitial
-			  lastExon = lastExon->next = curState->getBiologicalState();
-			  curState = curState->next;
+
+		if (curState != NULL) 
+		{
+			// cerr << "[2] One exon found !!" << endl;
+
+	    	if (isNc(curState->type))
+			{
+				// cerr << "[3] isNc(" << curState->type << ")" << endl;
+
+				// noncoding gene
+				aTx = new Transcript();
+				aTx->strand = isOnFStrand(curState->type)? plusstrand : minusstrand;
+				
+				if(curState->type == ncsingle || curState->type == rncsingle) 
+				{ 
+					// cerr << "[4] curState->type == ncsingle" << endl;
+					
+					// no introns, just 1 exon
+					lastExon = aTx->exons = curState->getBiologicalState();
+					curState = curState->next;
+				}
+				else
+				{ 
+					// cerr << "[5] curState->type != ncsingle" << endl;
+
+					// multi-exon or incomplete noncoding gene
+					lastExon = NULL;
+					if (curState->type != ncinit && curState->type != rncterm)
+						aTx->complete = false;
+		    	
+					aTx->exons = lastExon = curState->getBiologicalState();
+		    		curState = curState->next;
+		    
+					if (isNc(curState->type))
+					{ 
+						// cerr << "[6] isNc(" << curState->type << ")" << endl;
+
+						//my be intergenic if starting with incomplete noncoding gene
+		       			while (curState && curState->type != ncterm && curState->type != rncinit)
+						{
+			  				if (isIntron(curState->type)) 
+							{
+						    	anIntron = new State();
+							    anIntron->begin = curState->begin;
+								anIntron->type = isOnFStrand(curState->type)? intron_type : rintron_type;
+							
+								while (curState->next && isIntron(curState->next->type))
+									curState = curState->next;
+			     			
+								anIntron->end = curState->end;
+			     				anIntron->truncated = curState->truncated;
+			     
+				 				if (aTx->introns == NULL) 
+								{
+									aTx->introns = lastIntron = anIntron->getBiologicalState();
+			     				} 
+								else
+								{
+									lastIntron = lastIntron->next = anIntron->getBiologicalState();
+			     				}
+			     
+				 				if (lastIntron->end > aTx->transstart)
+									aTx->transend = lastIntron->end; // if gene ends with intron then let this be the transcript end
+			  				} 
+							else if (curState->type == ncinternal || curState->type == rncinternal) 
+							{
+			     				lastExon = lastExon->next = curState->getBiologicalState();
+			  				} 
+							else
+							{
+			     				print();
+			     				throw ProjectError("state path doesn't constitute a valid gene (noncoding)");
+			  				}
+
+			  				curState = curState->next;
+		       			}
+		       
+			   if (curState == NULL) 
+			   {
+					aTx->complete = false;
+		       } 
+			   else
+			   { 
+				   // ncterminal or rncinitial
+			  		lastExon = lastExon->next = curState->getBiologicalState();
+			  		curState = curState->next;
 		       }
 		    }
 		}
+
 		aTx->transstart = aTx->exons->begin;
 		aTx->transend = lastExon->end;
-	    } else { // coding gene
+	}
+	else
+	{ 
+		// cerr << "[7] coding gene !!" << endl;
+
+		// coding gene
 		if (!aGene)
-		    aGene = new Gene();
+		   	aGene = new Gene();
 		
 		aGene->strand = isOnFStrand(curState->type)? plusstrand : minusstrand;
+			
 		if (aGene->strand == minusstrand)
-		    aGene->frame = 2; // this is an intermediate value for the leftmost base, only default
+		   	aGene->frame = 2; // this is an intermediate value for the leftmost base, only default
+		
 		last5utrexon = last3utrexon = NULL;
-		if (is5UTR(curState->type)){
-		    while (curState && is5UTR(curState->type)){ // read in the 5' UTR
-			if (!last5utrexon)
-			    aGene->complete5utr = (curState->type == utr5single || curState->type == utr5init);
-			if (isExon(curState->type)){
-			    utrexon = curState->getBiologicalState();
-			    if (!last5utrexon)
-				aGene->utr5exons = utrexon;
-			    else
-				last5utrexon->next = utrexon;
-			    last5utrexon = utrexon;
-			}
-			curState = curState->next;
+		if (is5UTR(curState->type))
+		{
+			// cerr << "[8] is5UTR(" << curState->type << ")" << endl;
+
+			while (curState && is5UTR(curState->type))
+			{ 
+				// cerr << "[9] while(curState && is5UTR(" << curState->type << "))" << endl;
+				// read in the 5' UTR
+				if (!last5utrexon)
+			    	aGene->complete5utr = (curState->type == utr5single || curState->type == utr5init);
+			
+				if (isExon(curState->type))
+				{
+					// cerr << "[10] isExon(" << curState->type << ")" << endl;
+
+			    	utrexon = curState->getBiologicalState();
+			    	
+					if (!last5utrexon)
+						aGene->utr5exons = utrexon;
+			    	else
+						last5utrexon->next = utrexon;
+			    	
+					last5utrexon = utrexon;
+				}
+				
+				curState = curState->next;
 		    }
-		} else if (is3UTR(curState->type)){
-		    while (curState && is3UTR(curState->type)){ // read in the reverse 3' UTR
-			if (!last3utrexon)
-			    aGene->complete3utr = (curState->type == rutr3single || curState->type == rutr3term);
-			if (isExon(curState->type)){
-			    utrexon = curState->getBiologicalState();
-			    if (!last3utrexon)
-				aGene->utr3exons = utrexon;
-			    else
-				last3utrexon->next = utrexon;
-			    last3utrexon = utrexon;
-			}
-			curState = curState->next;
+		} 
+		else if (is3UTR(curState->type))
+		{
+			// cerr << "[11] is3UTR(" << curState->type << ")" << endl;
+
+		    while (curState && is3UTR(curState->type))
+			{ 
+				// read in the reverse 3' UTR
+				if (!last3utrexon)
+			    	aGene->complete3utr = (curState->type == rutr3single || curState->type == rutr3term);
+				
+				if (isExon(curState->type))
+				{
+					// cerr << "[12] isExon(" << curState->type << ")" << endl;
+
+			    	utrexon = curState->getBiologicalState();
+			    	
+					if (!last3utrexon)
+						aGene->utr3exons = utrexon;
+			    	else
+						last3utrexon->next = utrexon;
+			    	
+					last3utrexon = utrexon;
+				}
+
+				curState = curState->next;
 		    }
 		}
-		if (curState && isExon(curState->type)) { // otherwise the (incomplete) gene consists just of UTR
-		    if (curState->type == singleG || curState->type == rsingleG) {
-			aGene->exons = curState->getBiologicalState();
-		    } else { // multiple exon gene or incomplete
-			lastExon = 0;
-			if (!isInitialExon(curState->type) && !isRTerminalExon(curState->type)){
-			    aGene->complete = false; // doesn't start with initial or rterminal: incomplete
-			}
-			if (curState->type == terminal || curState->type == rinitial){
-			    aGene->exons = curState->getBiologicalState();
-			    // determine reading frame of gene
-			    if (aGene->strand == plusstrand){
-				aGene->frame = mod3(aGene->exons->frame() - aGene->exons->length());
-			    } else
-				// this is an intermediate value, the correct reading frame at the right end
-				// is determined below
-				aGene->frame = mod3(aGene->exons->frame() + aGene->exons->length());
-			} else {
-			    aGene->exons = lastExon = curState->getBiologicalState();
-			    // determine reading frame of gene
-			    if (aGene->strand == plusstrand){
-				aGene->frame = mod3(aGene->exons->frame() - aGene->exons->length());
-			    } else
-				// this is an intermediate value, the correct reading frame at the right end
-				// is determined below
-				aGene->frame = mod3(aGene->exons->frame() + aGene->exons->length());
-			    curState = curState->next;
-			    while(curState && curState->type != terminal && curState->type != rinitial) {
-				if (isIntron(curState->type)) {
-				    anIntron = new State();
-				    anIntron->begin = curState->begin;
-				    anIntron->type = isOnFStrand(curState->type)? intron_type : rintron_type;
-				    while(curState->next && isIntron(curState->next->type)){
+
+		if (curState && isExon(curState->type)) 
+		{ 
+			// GM cerr << "[13] curState && isExon(" << curState->type << ")" << endl;
+
+			
+			// otherwise the (incomplete) gene consists just of UTR
+		    if (curState->type == singleG || curState->type == rsingleG) 
+			{
+				// cerr << "[14] curState->type == singleG" << endl;
+
+				aGene->exons = curState->getBiologicalState();
+		    } 
+			else
+			{ 
+				// cerr << "[15] curState->type != singleG" << endl;
+
+				// multiple exon gene or incomplete
+				lastExon = 0;
+				if (!isInitialExon(curState->type) && !isRTerminalExon(curState->type))
+				{
+			    	aGene->complete = false; // doesn't start with initial or rterminal: incomplete
+				}
+				
+				if (curState->type == terminal || curState->type == rinitial)
+				{
+			   		aGene->exons = curState->getBiologicalState();
+			    	// determine reading frame of gene
+			    	
+					if (aGene->strand == plusstrand)
+					{
+						aGene->frame = mod3(aGene->exons->frame() - aGene->exons->length());
+			    	}
+					else
+						// this is an intermediate value, the correct reading frame at the right end
+						// is determined below
+						aGene->frame = mod3(aGene->exons->frame() + aGene->exons->length());
+				} 
+				else
+				{
+			    	aGene->exons = lastExon = curState->getBiologicalState();
+			    	// determine reading frame of gene
+			    	if (aGene->strand == plusstrand)
+					{
+						aGene->frame = mod3(aGene->exons->frame() - aGene->exons->length());
+			    	}
+					else
+						// this is an intermediate value, the correct reading frame at the right end
+						// is determined below
+						aGene->frame = mod3(aGene->exons->frame() + aGene->exons->length());
+			    	
 					curState = curState->next;
-				    }
-				    anIntron->end = curState->end;
-				    anIntron->truncated = curState->truncated;
-				    if (aGene->introns == NULL) {
-					aGene->introns = lastIntron = anIntron->getBiologicalState();
-				    } else {
-					lastIntron = lastIntron->next = anIntron->getBiologicalState();
-				    }
-				    if (lastIntron->end > aGene->transstart)
-					aGene->transend = lastIntron->end; // if gene ends with intron then let this be the transcript end
-				} else if (isInternalExon(curState->type) || isRInternalExon(curState->type)) {
-				    lastExon = lastExon->next = curState->getBiologicalState();
-				} else {
-				    throw ProjectError("state path doesn't constitute a valid gene");
-				}
-				curState = curState->next;
+			    	while(curState && curState->type != terminal && curState->type != rinitial)
+					{
+						if (isIntron(curState->type))
+						{
+				    		anIntron = new State();
+				    		anIntron->begin = curState->begin;
+				    		anIntron->type = isOnFStrand(curState->type)? intron_type : rintron_type;
+				    
+							while(curState->next && isIntron(curState->next->type))
+							{
+								curState = curState->next;
+				   			}
+				    		
+							anIntron->end = curState->end;
+				    		anIntron->truncated = curState->truncated;
+				    
+							if (aGene->introns == NULL) 
+							{
+								aGene->introns = lastIntron = anIntron->getBiologicalState();
+				    		}
+							else
+							{
+								lastIntron = lastIntron->next = anIntron->getBiologicalState();
+				   			}
+				    
+							if (lastIntron->end > aGene->transstart)
+								aGene->transend = lastIntron->end; // if gene ends with intron then let this be the transcript end
+						}
+						else if (isInternalExon(curState->type) || isRInternalExon(curState->type))
+						{
+				    		lastExon = lastExon->next = curState->getBiologicalState();
+						}
+						else
+						{
+				    		throw ProjectError("state path doesn't constitute a valid gene");
+						}
+
+					curState = curState->next;
 			    }
-			    if (curState == NULL) {
-				// terminal exon or rinitial exon missing, or only terminal exon or only riniital exon - incomplete Gene
-				aGene->complete = false;
-			    } else {
-				// append terminal or riniital exon to list of exons
-				lastExon = lastExon->next = curState->getBiologicalState();
+			    
+				if (curState == NULL)
+				{
+					// terminal exon or rinitial exon missing, or only terminal exon or only riniital exon - incomplete Gene
+					aGene->complete = false;
 			    } 
-			}  // type != terminal && type != rinitial
-		    } // multiple exon gene or incomplete
-		    if (curState)
+				else
+				{
+					// append terminal or riniital exon to list of exons
+					lastExon = lastExon->next = curState->getBiologicalState();
+			    } 
+			}  
+			// type != terminal && type != rinitial
+		} 
+		// multiple exon gene or incomplete
+		
+		
+		
+		if (curState)
 			curState = curState->next;
-		    last5utrexon = last3utrexon = NULL;
-		    if (curState) {
-			if (is5UTR(curState->type)){
-			    while (curState && is5UTR(curState->type)){ // read in the reverse 5' UTR
-				if (!(curState->next && is5UTR(curState->next->type)))
-				    aGene->complete5utr = (curState->type==rutr5single || curState->type==rutr5init);
-				if (isExon(curState->type)){
-				    utrexon = curState->getBiologicalState();
-				    if (!last5utrexon)
-					aGene->utr5exons = utrexon;
-				    else
-					last5utrexon->next = utrexon;
-				    last5utrexon = utrexon;
-				}
+		last5utrexon = last3utrexon = NULL;
+		
+		if(curState)
+		{
+			// cerr << "[16] curState" << endl;
+
+			if (is5UTR(curState->type))
+			{
+				// cerr << "[17] is5UTR(" << curState->type << ")" << endl;
+
+			    while (curState && is5UTR(curState->type))
+				{ 
+					// read in the reverse 5' UTR
+					if (!(curState->next && is5UTR(curState->next->type)))
+				    	aGene->complete5utr = (curState->type==rutr5single || curState->type==rutr5init);
+					if (isExon(curState->type))
+					{
+				    	utrexon = curState->getBiologicalState();
+				    	if (!last5utrexon)
+							aGene->utr5exons = utrexon;
+				    	else
+							last5utrexon->next = utrexon;
+				    	last5utrexon = utrexon;
+					}
+				
 				curState = curState->next;
-			    }
-			} else if (is3UTR(curState->type)){
-			    while (curState && is3UTR(curState->type)){ // read in the 3' UTR
-				if (!(curState->next && is3UTR(curState->next->type)))
-				    aGene->complete3utr = (curState->type == utr3single || curState->type == utr3term);
-				if (isExon(curState->type)){
-				    utrexon = curState->getBiologicalState();
-				    if (!last3utrexon)
-					aGene->utr3exons = utrexon;
-				    else
-					last3utrexon->next = utrexon;
-				    last3utrexon = utrexon;
 				}
-				curState = curState->next;
+			} 
+			else if (is3UTR(curState->type))
+			{
+				// cerr << "[18] is3UTR(" << curState->type << ")" << endl;
+
+			    while (curState && is3UTR(curState->type))
+				{ // read in the 3' UTR
+					if (!(curState->next && is3UTR(curState->next->type)))
+					    aGene->complete3utr = (curState->type == utr3single || curState->type == utr3term);
+					
+					if (isExon(curState->type))
+					{
+				   		utrexon = curState->getBiologicalState();
+				    	if (!last3utrexon)
+							aGene->utr3exons = utrexon;
+				    	else
+							last3utrexon->next = utrexon;
+				    	last3utrexon = utrexon;
+					}
+				
+					curState = curState->next;
 			    }
 			}
-		    }
-		} else { //the gene consists just of UTR
-		    if (!Constant::reportUtrOnlyGenes) {// default, do not consider this gene
+		}
+	} 
+	else
+	{ 
+		// cerr << "[19] the gene consists just of UTR" << endl;
+
+		// the gene consists just of UTR
+	   	if (!Constant::reportUtrOnlyGenes) 
+		{
+			// default, do not consider this gene
 			if (aGene)
 			    delete aGene;
 			aGene = NULL;
-		    }
 		}
+	}
 	    
-		//
-		// finish construction of gene
-		//
-		if (aGene){
-		    // add UTR introns as gaps between UTR exons
-		    State *intron;
-		    lastIntron = NULL;
-		    for (utrexon = aGene->utr5exons; utrexon != NULL && utrexon->next != NULL; utrexon = utrexon->next) {
-			intron = new State();
-			intron->begin = utrexon->end + 1;
-			intron->end = utrexon->next->begin - 1;
-			intron->type = intron_type;
-			intron->next = NULL;
-			if (lastIntron)
-			    lastIntron->next = intron;
-			else
-			    aGene->utr5introns = intron;
-			lastIntron = intron;
-		    }
-		    lastIntron = NULL;
-		    for (utrexon = aGene->utr3exons; utrexon != NULL && utrexon->next != NULL; utrexon = utrexon->next) {
-			intron = new State();
-			intron->begin = utrexon->end + 1;
-			intron->end = utrexon->next->begin - 1;
-			intron->type = intron_type;
-			intron->next = NULL;
-			if (lastIntron)
-			    lastIntron->next = intron;
-			else
-			    aGene->utr3introns = intron;
-			lastIntron = intron;
-		    }
-		
-		    // determine coding length of aGene
-		    aGene->clength = 0;
-		    for (State* ee = aGene->exons; ee != NULL; ee = ee->next)
-			aGene->clength += ee->length();
-	    
-		    if (aGene->strand == minusstrand)
-			aGene->frame = mod3(aGene->frame - aGene->clength + 1); // only != 0 for incomplete genes
-	    
-		    // transcription boundaries
-		    if (aGene->utr5exons && (aGene->transstart < 0 || aGene->transstart > aGene->utr5exons->begin))
-			aGene->transstart = aGene->utr5exons->begin;
-		    if (aGene->utr3exons && (aGene->transstart < 0 || aGene->transstart > aGene->utr3exons->begin))
-			aGene->transstart = aGene->utr3exons->begin;
-		    if (last5utrexon && (aGene->transend < 0 || aGene->transend < last5utrexon->end))
-			aGene->transend = last5utrexon->end;
-		    if (last3utrexon && (aGene->transend < 0 || aGene->transend < last3utrexon->end))
-			aGene->transend = last3utrexon->end;
+	//
+	// finish construction of gene
+	//
+	if (aGene)
+	{
+		// add UTR introns as gaps between UTR exons
+		State *intron;
+		lastIntron = NULL;
+		for (utrexon = aGene->utr5exons; utrexon != NULL && utrexon->next != NULL; utrexon = utrexon->next) 
+		{
+			// cerr << "[20]" << endl;
 
-		    // determine the length of the range of the coding region, initialize codingstart and -end
-		    if (aGene->exons){
+			intron = new State();
+			intron->begin = utrexon->end + 1;
+			intron->end = utrexon->next->begin - 1;
+			intron->type = intron_type;
+			intron->next = NULL;
+
+			if (lastIntron)
+				lastIntron->next = intron;
+			else
+				aGene->utr5introns = intron;
+			lastIntron = intron;
+		}
+	
+		lastIntron = NULL;
+		for (utrexon = aGene->utr3exons; utrexon != NULL && utrexon->next != NULL; utrexon = utrexon->next)
+		{
+			// cerr << "[21]" << endl;
+
+			intron = new State();
+			intron->begin = utrexon->end + 1;
+			intron->end = utrexon->next->begin - 1;
+			intron->type = intron_type;
+			intron->next = NULL;
+			if (lastIntron)
+				lastIntron->next = intron;
+			else
+				aGene->utr3introns = intron;
+			lastIntron = intron;
+		}
+	
+		// determine coding length of aGene
+		aGene->clength = 0;
+		for (State* ee = aGene->exons; ee != NULL; ee = ee->next)
+			aGene->clength += ee->length();
+	
+		// cerr << "[22] aGene->clength" << aGene->clength << endl;
+
+		if (aGene->strand == minusstrand)
+			aGene->frame = mod3(aGene->frame - aGene->clength + 1); // only != 0 for incomplete genes
+	
+		// transcription boundaries
+		if (aGene->utr5exons && (aGene->transstart < 0 || aGene->transstart > aGene->utr5exons->begin))
+		{
+			aGene->transstart = aGene->utr5exons->begin;
+			// cerr << "[23] aGene->transstart " << aGene->transstart << endl;
+		}
+
+		if (aGene->utr3exons && (aGene->transstart < 0 || aGene->transstart > aGene->utr3exons->begin))
+		{
+			// cerr << "[24]" << endl;
+			aGene->transstart = aGene->utr3exons->begin;
+		}
+		
+		if (last5utrexon && (aGene->transend < 0 || aGene->transend < last5utrexon->end))
+		{
+			// cerr << "[25]" << endl;
+			aGene->transend = last5utrexon->end;
+		}
+		
+		if (last3utrexon && (aGene->transend < 0 || aGene->transend < last3utrexon->end))
+		{
+			aGene->transend = last3utrexon->end;
+			// cerr << "[26] aGene->transend " << aGene->transend << endl;
+		}
+
+		// determine the length of the range of the coding region, initialize codingstart and -end
+		if (aGene->exons)
+		{
 			aGene->codingstart = aGene->exons->begin;
 			aGene->codingend = aGene->lastExon()->end;
 			aGene->length = aGene->codingend - aGene->codingstart + 1;
-			while (protIt != proteinMatches.end() && protIt->firstBase <= aGene->codingend) {
-			    aGene->proteinMatches.push_back(*protIt);
-			    ++protIt;
-			}
-		    } else{
-			aGene->length = 0;
-		    }
 
-		    if (aGene->codingend > aGene->transend)
-			aGene->transend = -1;
-		    if (aGene->codingstart >= 0 && aGene->codingstart < aGene->transstart)
-			aGene->transstart = -1;
+			//cerr << "[30] aGene->codingstart " << aGene->codingstart << endl;
+			//cerr << "[30] aGene->codingend " << aGene->codingend << endl;
+			//cerr << "[30] aGene->length " << aGene->length << endl;
+
+			
+			while (protIt != proteinMatches.end() && protIt->firstBase <= aGene->codingend) 
+			{
+				aGene->proteinMatches.push_back(*protIt);
+				++protIt;
+			}
 		}
+		else
+		{
+			aGene->length = 0;
+		}
+
+		if (aGene->codingend > aGene->transend)
+			aGene->transend = -1;
+		if (aGene->codingstart >= 0 && aGene->codingstart < aGene->transstart)
+			aGene->transstart = -1;
+	}
 	    } // end coding gene
 	    // append this gene to list of genes
 	    if (aGene || aTx){
@@ -996,7 +1200,7 @@ StatePath *StatePath::condenseStatePath(StatePath *oldpath){
 	    path->first->truncated |= oldstate->truncated;
 	    path->first->prob *= oldstate->prob;
 	} else {
-	    temp = new State(*oldstate);
+		temp = new State(*oldstate);
 	    temp->next = NULL;
 	    path->push(temp);
 	}
@@ -1431,7 +1635,8 @@ char* Transcript::getExonicSequence(AnnoSequence *annoseq, bool noOffset) const{
 }
 
 bool Gene::hasInFrameStop(AnnoSequence *annoseq) const{
-    Seq2Int s2i(3);
+    
+	Seq2Int s2i(3);
     const char * seq = getExonicSequence(annoseq);
     const char * codingSeq = seq;
     codingSeq += mod3(-frame); // if gene is incomplete, frame is the position of the first base
@@ -1439,6 +1644,9 @@ bool Gene::hasInFrameStop(AnnoSequence *annoseq) const{
 	try {
 	    if (GeneticCode::map[s2i(codingSeq)] < 0){
 		//in-frame stop codon. Can happen when stop codon is parted by splice site, hopefully rare.
+		
+		// cerr << "Inframe STOP found!!" << endl;
+		
 		return true;
 	    }
 	} catch (...) {}// because of masking
@@ -2017,7 +2225,9 @@ void Gene::printGFF() const {
 	("transcript_id \"" + transcript_id + "\"; gene_id \"" + geneid + "\";");
 
     // output left utr
-    for(curExon = first_left_utr; curExon != NULL; curExon = curExon->next) {
+    for(curExon = first_left_utr; curExon != NULL; curExon = curExon->next) 
+	{
+	
 	if (strand == plusstrand && curExon == utr5exons && complete5utr && print_tss) {
 	    cout << seqname << "\t" << source << "\t";
 	    if (gff3)
@@ -2028,6 +2238,7 @@ void Gene::printGFF() const {
 	    cout << "."; // no apostprob of signals yet
 	    cout << "\t+\t.\t" << parentstr << endl;
 	}
+	
 	if (strand == minusstrand && curExon == utr3exons && complete3utr && print_tts) {
 	    cout << seqname << "\t" << source << "\t";
 	    if (gff3)
@@ -2038,7 +2249,11 @@ void Gene::printGFF() const {
 	    cout << "."; // no apostprob of signals yet
 	    cout << "\t-\t.\t" << parentstr << endl;
 	}	
-	if (print_utr) { 
+	
+	
+	
+	if (print_utr) 
+	{ 
 	    if (curExon->end >= curExon->begin) {// UTR exon can have length 0 when start codon comes right after splice site
 		cout << seqname << "\t" << source << "\t";
 		if ((strand == plusstrand))
@@ -2059,18 +2274,34 @@ void Gene::printGFF() const {
 		cout << "\t" << ((strand == plusstrand)? '+' : '-') << "\t"; // strand
 		cout << ".\t" << parentstr << endl;
 	    }
-	} else {
+	} 
+	else
+	{
+		string msg = "exon\t";
+
 	    from = curExon->begin+1;
 	    to = curExon->end+1; 
-	    if (!curExon->next) {// last left utr exon
-		if (exons) {
-		    to = exons->end+1;
-		    if (exons && !exons->next && first_right_utr)
-			to = first_right_utr->end+1;
-		}
+
+
+	    if (!curExon->next) 
+		{	
+			msg = "exon\t";
+			// last left utr exon
+			if (exons) 
+			{
+				msg = "exon\t";
+
+		    	to = exons->end+1;
+		    	if (exons && !exons->next && first_right_utr)
+				{
+					to = first_right_utr->end+1;
+					msg = "exon\t";
+				}
+			}
 	    }
+	
 	    cout << seqname << "\t" << source << "\t";
-	    cout << "exon\t" << from << "\t" << to << "\t.";
+	    cout << msg << from << "\t" << to << "\t.";
 	    cout << "\t" << ((strand == plusstrand)? '+' : '-') << "\t"; 
 	    cout << ".\t" << parentstr << endl;
 	}
@@ -2155,26 +2386,110 @@ void Gene::printGFF() const {
 		if (isRTerminalExon(curExon->type) || curExon->type == rsingleG)
 		    beginmod = 3;
 	    }
-	    if ( curExon->begin+1 + beginmod <= curExon->end+1 + endmod) {
-		// this check ensures that exons consisting just of one stop codon are omitted completely, when the stop codon is excluded from CDS
-		cout << seqname << "\t" << source << "\t" << "CDS" << "\t"; 
-		cout << curExon->begin+1 + beginmod << "\t" << curExon->end+1 + endmod << "\t";
-		if (curExon->hasScore)
-		    cout << setprecision(3) << curExon->apostprob; // score
-		else
-		    cout << ".";
-		cout << "\t" << ((strand == plusstrand)? '+' : '-') << "\t"; // strand
-		if (strand == plusstrand)
-		    cout << mod3(3-(curExon->frame() - curExon->length())) << "\t";
-		else
-		    cout << mod3(2-curExon->frame()) << "\t";
-		if (gff3) 
-		    cout << "ID=" << geneid << "." << id << ".cds" << ";";
-		cout << parentstr << endl;
+	    
+		if ( curExon->begin+1 + beginmod <= curExon->end+1 + endmod) 
+		{
+			// this check ensures that exons consisting just of one stop codon are omitted completely, when the stop codon is excluded from CDS
+			
+			/* GM for the sake of test : fsArr got lost in getbioexon method
+			cerr << "FRAME SHIFTS: ";
+			for(int i=0;i<curExon->fsArr.size();++i)
+				cerr << " " << curExon->fsArr[i];
+			cerr << endl;
+			*/
+			
+			if(curExon->fsArr.empty())
+			{
+				cout << seqname << "\t" << source << "\t" << "CDS" << "\t"; 
+				cout << curExon->begin+1 + beginmod << "\t" << curExon->end+1 + endmod << "\t";
+				
+				if (curExon->hasScore)
+					cout << setprecision(3) << curExon->apostprob; // score
+				else
+					cout << ".";
+				
+				cout << "\t" << ((strand == plusstrand)? '+' : '-') << "\t"; // strand
+				
+
+				// GM test
+				
+				/*
+				cerr << "exon len " << curExon->length() << endl;
+				cerr << "exon begin " << curExon->begin << endl;
+				cerr << "exon end " << curExon->end << endl;
+				cerr << "exon frame " << curExon->frame() << endl;
+				cerr << "exon phase " << (3-(curExon->frame() - curExon->length())) << endl;
+				cerr << "exon phase mod3 " << mod3(3-(curExon->frame() - curExon->length())) << endl;
+				*/
+
+				if (strand == plusstrand)
+					cout << mod3(3-(curExon->frame() - curExon->length())) << "\t";
+				else
+					cout << mod3(2-curExon->frame()) << "\t";
+				
+				if (gff3) 
+					cout << "ID=" << geneid << "." << id << ".cds" << ";";
+				cout << parentstr << endl;
+			}
+			else		
+			{
+				// GM to be verified
+				// the first one is zero for either single or initial exons
+				// more in general you can use thelength from beginning to first fs
+				cout << seqname << "\t" << source << "\t" << "CDS" << "\t"; 
+				cout << curExon->begin+1 + beginmod << "\t" << curExon->fsArr[0] << "\t";
+				
+				if (curExon->hasScore)
+					cout << setprecision(3) << curExon->apostprob; // score
+				else
+					cout << ".";
+				
+				cout << "\t" << ((strand == plusstrand)? '+' : '-') << "\t"; // strand
+				
+				if (strand == plusstrand)
+					cout << mod3(curExon->fsArr[0] - curExon->begin) << "\t";
+				// -1 + 1 mutually cancelled in computing new lrngth, new frame is zero
+				else // GM reverse strand issue still pending
+					cout << mod3(2-curExon->frame()) << "\t";
+				
+				if (gff3) 
+					cout << "ID=" << geneid << "." << id << ".cds" << ";";
+				cout << parentstr << endl;
+				
+				// subsequent CDS are all zero phased due to ribosome forcing restart
+				for(int start, end, i=0;i<curExon->fsArr.size();++i)
+				{
+					start = curExon->fsArr[i]+2;
+					if(i==curExon->fsArr.size()-1)
+						end = curExon->end+1 + endmod;
+					else
+						end = curExon->fsArr[i];
+					
+					cout << seqname << "\t" << source << "\t" << "CDS" << "\t"; 
+					cout << start << "\t" << end << "\t";
+					
+					if (curExon->hasScore)
+						cout << setprecision(3) << curExon->apostprob; // score
+					else
+						cout << ".";
+					cout << "\t" << ((strand == plusstrand)? '+' : '-') << "\t"; // strand
+					
+					if (strand == plusstrand)
+						cout << 0 << "\t";
+					else
+						cout << mod3(2-curExon->frame()) << "\t";
+					
+					if (gff3) 
+						cout << "ID=" << geneid << "." << id << ".cds" << ";";
+					cout << parentstr << endl;
+				}	
+			}
 	    }	
 	}
+
 	// print 'exon'
-	if (Constant::utr_option_on && !print_utr) { // output 'exon' only if prediction with UTR is turned on and UTRs are not output in the other (UTR) format
+	if (Constant::utr_option_on && !print_utr) 
+	{ // output 'exon' only if prediction with UTR is turned on and UTRs are not output in the other (UTR) format
 	  if (curExon != exons || !first_left_utr) {// first_left_utr can be NULL in case of incomplete gene
 		from = curExon->begin+1;
 		to = curExon->end+1;
@@ -2502,8 +2817,9 @@ void filterGenePrediction(list<Transcript*> &gl, list<Transcript*> &filteredTran
 	     * keep gene if the geometric mean of all states posterior probabilities is at least minmeanexonintronprob
 	     */
 	    if ((*git)->meanStateProb() < minmeanexonintronprob && !(Constant::keep_viterbi && (*git)->viterbi))
-		keep = false;
+			keep = false;
 	}
+	
 	if (keep && (*git)->hasProbs) {
 	    /* 
 	     * filter transcript by a posteriori probability of exons,
