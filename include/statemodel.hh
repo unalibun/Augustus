@@ -17,7 +17,6 @@
 #include "merkmal.hh"
 
 
-
 /*
  * constants used in splitting into state/substate pairs
  * we use the lower byte for the state, and the upper 3 for the substate
@@ -85,6 +84,15 @@ public:
     static void makeProbsFromCounts(vector<Double > &patprobs , const vector<Integer > &patcounts, 
 				    int k, Double pseudocount, Boolean shorten = false);
     static void computeEmiFromPat(const vector<Double>& patprobs, vector<Double>& emiprobs, Integer k);
+    
+    //GM
+    static int getEndOfPred();
+    static int getNumFs();
+    static int getError();
+
+    static void setFs(Fs fs);
+    static void setSwapSeq(char* dnaFS);
+    static void swapDna(int startAt, int endAt);
     static void prepareViterbi(const char* dna, int len, const vector<StateType> &stateMap);
     static void readProbabilities(int);
     static void resetPars();
@@ -124,14 +132,23 @@ public:
     static void setGCIdx(int idx) {gcIdx = idx;}
     static void setContentStairs(ContentStairs *stairs) {cs = stairs;}
     static int getGCIdx(int at){if (cs) return cs->idx[at]; else return -1;}
+
+    
 protected:
+	// GM variable introduce for the sake of testing
+    static int m_numFs, m_endOfPred, m_error;
+    
     // variable unique to each model
     vector<Ancestor>  ancestor;    // predecessor in the state transition graph
 
     // class variables shared by all models
     static const vector<StateType>* stateMap;  // needed in exonmodel 
-    static const char* sequence;   // the sequence currently examined
-    static int dnalen;
+    static const char* sequence, *sequenceCC;    // the sequence currently examined
+    // GM variable sequenceFS added
+    static Fs s_fs;
+    static int singleFsSite;
+    static char* sequenceFS;        
+    static int dnalen, dnalenold;
     static SequenceFeatureCollection* seqFeatColl;
     static vector<Boolean>* shortpattern;
     static PP::SubstateModel* profileModel;

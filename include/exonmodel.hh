@@ -22,6 +22,7 @@
 #include "statemodel.hh"
 
 
+
 /*
  * The reading frame of an exon is the position of the nucleotide following the exon
  * in its codon starting counting at 0:
@@ -46,21 +47,40 @@ public:
  */
 class OpenReadingFrame{
 public:
-    OpenReadingFrame(const char* dna, int _max_exon_length, int _n);
+    OpenReadingFrame(const char* dna, int _max_exon_length, int _n, Fs _fs = Fs::none);
     OpenReadingFrame() {}
     ~OpenReadingFrame() {}
     int leftmostExonBegin(int frame, int base, bool forward);
+    int leftmostExonBeginFS(int frame, int base, bool forward);
+    void updateStopNearest(const char *dna);
+    void updateFsNearest(const char *dna);
+
+    // GM
+    void readFsHintsFromFile(vector<int>& v);
+    void printNearestForward();
+    void enableFs(Fs _fs);
+    void resetFsEntries();
+    int getFsEntry(int pos);
+    int getFsNum();
+    void shrinkSequence(const char* src, char* dst, int startAt, int endAt);
+    void shrinkSequenceBack(const char* src, char* dst, int startAt, int endAt);
 
 private:
+
     // used internally, these call GeneticCode
     static bool isStopcodon(const char* dna);
     static bool isRCStopcodon(const char* dna);
 
-    vector<Integer> nearestStopForward;
-    vector<Integer> nearestStopReverse;
+    vector<Integer> nearestStopForward, nearestFsForward, fsArr;   // GM
+    vector<Integer> nearestStopReverse, nearestFsReverse;
+	vector<bool> isFscodon;
+    
     int n;
     int max_exon_length;
     // static bool amber, ochre, opal; // now taken care of by GeneticCode
+
+    // GM
+    Fs fs;   
 };
 
 /*
@@ -77,6 +97,25 @@ public:
     void buildModel         ( const AnnoSequence* annoseq, int parIndex );
     void registerPars       ( Parameters* parameters);
     void printProbabilities ( int parIndex, BaseCount *bc, const char* suffix = NULL );
+    
+    void viterbiForwardAndSamplingWrapper(ViterbiMatrixType& viterbi, // matrix of viterbi variables
+					  ViterbiMatrixType& forward, // matrix of forward variables
+					  int state,
+					  int base,                   // end of the exon state
+					  AlgorithmVariant algovar,   // doViterbiOnly, doViterbiAndForward, doSampling or doBacktracking
+					  OptionListItem& oli);
+    bool viterbiForwardAndSamplingHelper(ViterbiMatrixType& viterbi, // matrix of viterbi variables
+					  ViterbiMatrixType& forward, // matrix of forward variables
+					  int state,
+					  int base,                   // end of the exon state
+					  int endOfBioExon, 
+					  int right, 
+					  int frameOfRight, 
+					  int endOfNonStopcodon, 
+					  int frameOfEndOfNonStopcodon, 
+					  int ORFleft, 
+					  AlgorithmVariant algovar,   // doViterbiOnly, doViterbiAndForward, doSampling or doBacktracking
+					  OptionListItem& oli);
     void viterbiForwardAndSampling(ViterbiMatrixType&, ViterbiMatrixType&, int, int,
 				   AlgorithmVariant, OptionListItem&);
     void processOvlpOption(ViterbiMatrixType& , ViterbiMatrixType&, AlgorithmVariant&,
@@ -84,6 +123,7 @@ public:
 			   Double emiProb, Double &fwdsum, OptionsList *, OptionListItem &oli, int base) const;
     Double emiProbUnderModel(int begin, int end) const;
     Double endPartEmiProb(int end) const;
+    Double endPartEmiProb(int end, int orfleft) const;
     Double notEndPartEmiProb(int beginOfStart, int right, int frameOfRight, Feature *exonparts) const;
     void initAlgorithms(Matrix<Double>&, int);
     static void storeGCPars(int idx);
@@ -102,7 +142,7 @@ public:
     static void setORF() {
       if (orf)
 	delete orf;
-      orf = new OpenReadingFrame(sequence, Constant::max_exon_len, dnalen);
+      orf = new OpenReadingFrame(sequence, Constant::max_exon_len, dnalen, s_fs);
       initAlgorithmsCalled = false;
     }
     static vector<Double> lenDistSingle;   // Length distribution of Single exons (length of biol. exon)
@@ -111,13 +151,15 @@ public:
     static vector<Double> lenDistTerminal; // Length distribution of Terminal exons (length of biol. exon)
 
 private:
+	//int ORFleft;
+    
     void processExons(const Gene* gene);
     void processSingleExon(const State* exon);
     void processInitialExon(const State* exon);
     void processInternalExon(const State* exon);
     void processTerminalExon(const State* exon);
     void processInnerSequence(const char* begin, const char* end, int modeltype = 0);
-    void buildProbabilities ( );
+    void buildProbabilities();
     Double seqProb(int endOfStart, int right, int frameOfRight) const;
     Double eTermSeqProb(int left, int right, int frameOfRight) const;
     Double initialSeqProb(int left, int right, int frameOfRight) const;
@@ -137,6 +179,8 @@ private:
     int              innerPartOffset;     //                           beginOfStart = beginOfBioExon + innerPartOffset
     int              innerPartEndOffset;  //                           right = endOfBioExon - innerPartEndOffset
     int              baseOffset;          //                           base = endOfBioExon - baseOffset
+    
+     
     Integer          gweight;
     // int prewin; 
 

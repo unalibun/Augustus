@@ -38,7 +38,7 @@ public:
      * Predict the path through the HMM and compute the predicted genes.
      * strand: plusstrand, minusstrand or bothstrands
      */
-    Transcript* doViterbiPiecewise(SequenceFeatureCollection& sfc, AnnoSequence *annoseq, Strand strand);
+    Transcript* doViterbiPiecewise(SequenceFeatureCollection& sfc, AnnoSequence *annoseq, Strand strand, Fs fs);
 
     Double getEmissionProbability();
 
@@ -74,6 +74,7 @@ public:
     void setPathAndProb(AnnoSequence *annoseq, FeatureCollection &extrinsicFeatures);
     void setAllTranscripts(list<Transcript*> *tl) {sampledTxs = tl;}
     list<Transcript*> *getAllTranscripts() {return sampledTxs;}
+    // GM null passed
     void getPrepareModels(const char *dna, int len) {prepareModels(dna, len);}
 private:
     /**

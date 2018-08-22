@@ -97,7 +97,31 @@ public:
   Evidence *evidence;
   char truncated; // truncated left, truncated right?
   int framemod; // reading frame modifier, frame = frame given by type + framemod (for truncation)
-    
+
+  // GM : a linked list can be used instead, since no random access is required
+  vector<int> fsArr;
+
+    // GM one more parameterized constructor added to pass fs
+    State(int first, int last, StateType t, vector<int>& fs) :
+      begin(first), end(last),
+      next(NULL),
+      type(t),
+      prob(0),
+      hasScore(false),
+      apostprob(0),
+      sampleCount(1),
+      evidence(NULL),
+      truncated(0),
+      framemod(0)
+  {
+        if(!fs.empty())
+        {
+            fsArr.resize(fs.size());
+            for(int i=0;i<fs.size();++i)
+                fsArr[i] = fs[i];
+        }
+  }
+
   State(int first, int last, StateType t) :
       begin(first), end(last),
       next(NULL),
@@ -123,10 +147,12 @@ public:
       evidence(NULL),
       truncated(0),
       framemod(0) {}
+
   ~State(){
     if (evidence)
-	delete evidence;
+	    delete evidence;
   }
+
   State *cloneStateSequence(){
     State *erg = new State(*this);
     if (next)
@@ -135,6 +161,7 @@ public:
       erg->next = NULL;
     return erg;
   }
+
   // copy constructor
     State(const State& other) :
 	begin(other.begin),
@@ -149,17 +176,26 @@ public:
 	truncated(other.truncated),
 	framemod(other.framemod)
     {
-	if (other.evidence)
-	    evidence = new Evidence(*other.evidence);
+	    if (other.evidence)
+	        evidence = new Evidence(*other.evidence);
+        
+        if(!other.fsArr.empty())
+        {
+            fsArr.resize(other.fsArr.size());
+            for(int k=0;k<other.fsArr.size();++k)
+                fsArr[k] = other.fsArr[k];
+        }
     }
   int frame(); // reading frame, in case it is a (coding) exon, usually depends only on the type
   bool frame_compatible(const Feature *hint);
   void addEvidence(string srcname) {if (!evidence) evidence = new Evidence(false); evidence->add(srcname);}
   bool operator< (const State &other) const;
   bool operator== (const State &other) const;
+  
   int length() {
     return end - begin + 1;
   }
+  
   Strand strand() {return isOnFStrand(type)? plusstrand : minusstrand;}
   State *getBiologicalState();
   void setTruncFlag(int end, int predEnd, int dnalen);
