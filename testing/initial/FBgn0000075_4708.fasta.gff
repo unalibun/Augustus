@@ -1,0 +1,92 @@
+# This output was generated with AUGUSTUS (version 3.3.1).
+# AUGUSTUS is a gene prediction tool written by M. Stanke (mario.stanke@uni-greifswald.de),
+# O. Keller, S. König, L. Gerischer, L. Romoth and Katharina Hoff.
+# Please cite: Mario Stanke, Mark Diekhans, Robert Baertsch, David Haussler (2008),
+# Using native and syntenically mapped cDNA alignments to improve de novo gene finding
+# Bioinformatics 24: 637-644, doi 10.1093/bioinformatics/btn013
+# No extrinsic information on sequences given.
+# Initialising the parameters using config directory /home/giovanna/Desktop/Projects/augustus-3.3.1/config/ ...
+# fly version. Using default transition matrix.
+# Looks like FBgn0000075_4708.fasta is in fasta format.
+# We have hints for 0 sequences and for 0 of the sequences in the input set.
+#
+# ----- prediction on sequence number 1 (length = 10002, name = FBgn0000075_4708) -----
+#
+# Constraints/Hints:
+# (none)
+# Predicted genes for sequence number 1 on both strands
+# start gene g1
+FBgn0000075_4708	AUGUSTUS	gene	2066	4264	0.15	+	.	g1
+FBgn0000075_4708	AUGUSTUS	transcript	2066	4264	0.15	+	.	g1.t1
+FBgn0000075_4708	AUGUSTUS	tss	2066	2066	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	exon	2066	2212	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	exon	2966	3049	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	start_codon	2970	2972	.	+	0	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	intron	3050	3110	1	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	intron	3346	4135	0.49	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	CDS	2970	3049	0.97	+	0	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	CDS	3111	3345	0.91	+	1	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	exon	3111	3345	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	CDS	4136	4180	0.51	+	0	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	exon	4136	4264	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	stop_codon	4178	4180	.	+	0	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075_4708	AUGUSTUS	tts	4264	4264	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+# protein sequence = [MDFDEFREFGHASIEFLINYLSGIRERDVLPSTAPYAVINQLPKEIPEQPDHWREVLKDLENIILPGLTHWQSPYFNA
+# FYPSSSSAGSIIGELLIAGIGVLGFSWIGHASQITVQSNRI]
+# end gene g1
+###
+# start gene g2
+FBgn0000075_4708	AUGUSTUS	gene	4546	6810	0.82	+	.	g2
+FBgn0000075_4708	AUGUSTUS	transcript	4546	6810	0.82	+	.	g2.t1
+FBgn0000075_4708	AUGUSTUS	tss	4546	4546	.	+	.	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075_4708	AUGUSTUS	exon	4546	5015	.	+	.	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075_4708	AUGUSTUS	start_codon	4700	4702	.	+	0	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075_4708	AUGUSTUS	intron	5016	5493	1	+	.	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075_4708	AUGUSTUS	CDS	4700	4708	1	+	0	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075_4708	AUGUSTUS	CDS	4710	5015	1	+	0	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075_4708	AUGUSTUS	CDS	5494	6711	0.96	+	0	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075_4708	AUGUSTUS	exon	5494	6810	.	+	.	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075_4708	AUGUSTUS	stop_codon	6709	6711	.	+	0	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075_4708	AUGUSTUS	tts	6810	6810	.	+	.	transcript_id "g2.t1"; gene_id "g2";
+# protein sequence = [WMPKEFREFGKAAIDYIADYLENIRDDDVLPNVEPGYLLDLLPTEMPEEPEAWKDVLGDISRVIKPGLTHWQSPHMHA
+# YYPTSTSYPSIVGEMLASGFGVIGFSWICSPACTELEVVVMDWLAKFLKLPAHFQHASDGPGGGVIQGSASEAVLVAVLAAREQAVANYRESHPELSE
+# SEVRGRLVAYSSDQSNSCIEKAGVLAAMPIRLLPAGEDFVLRGDTLRGAIEEDVAAGRIPVICVATLGTTGTCAYDDIESLSAVCEEFKVWLHVDAAY
+# AGGAFALEECSDLRKGLDRVDSLNFNLHKFMLVNFDCSAMWLRDANKVVDSFNVDRIYLKHKHEGQSQIPDFRHWQIPLGRRFRALKVWITFRTLGAE
+# GLRNHVRKHIELAKQFEQLVLKDSRFELVAPRALGLVCFRPKGDNEITTQLLQRLMDRKKIYMVKAEHAGRQFLRFVVCGMDTKASDIDFAWQEIESQ
+# LTDLQAEQSLVARKSGNVGDLAQHFQIHLSTENATHEKSQ]
+# end gene g2
+###
+# start gene g3
+FBgn0000075_4708	AUGUSTUS	gene	7216	9268	0.06	+	.	g3
+FBgn0000075_4708	AUGUSTUS	transcript	7216	9268	0.06	+	.	g3.t1
+FBgn0000075_4708	AUGUSTUS	tss	7216	7216	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075_4708	AUGUSTUS	exon	7216	7266	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075_4708	AUGUSTUS	exon	7517	7543	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075_4708	AUGUSTUS	start_codon	7536	7538	.	+	0	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075_4708	AUGUSTUS	intron	7544	7605	1	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075_4708	AUGUSTUS	CDS	7536	7543	0.96	+	0	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075_4708	AUGUSTUS	CDS	7606	9112	1	+	1	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075_4708	AUGUSTUS	exon	7606	9268	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075_4708	AUGUSTUS	stop_codon	9110	9112	.	+	0	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075_4708	AUGUSTUS	tts	9268	9268	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+# protein sequence = [MQCFKLASRRSLYNARVLQADNIGDKQRSPDLEAARQNTQIVVVGAGLAGLSAAQHLLSHGFRRTVILEATDRYGGRI
+# NTQRFGDTYCELGAKWVKIDGSQDSMYELLRNTEGLGKQIKQPDRATYLQDGSRINPAMVELIDTLFRQLCRGFKVSERVKTGGDLHSLDNVMNYFRT
+# ESDRIIGVSFQHPKDQLAAREIFQSLFKEFGSILGCCLEYVNIEHITKCPVQQEQRPLYVPTGLDNVVDDLIQNMDKAQLQTGKPVGQIQWTPAPMKS
+# VGCLDGSLYNADHIICTLPLGVLKSFAGVLFRPTLPLDKMLAIRNLGFGNPLKIYLSYKKPIGRWLKGSLRPLGTLLNPSVEQQPERNWTQQVVEISQ
+# VPSSQHVLEVHVGGGYYEEIEKLPDEELLEQITGLLRRCVSSHLVPYPQELLRSNWSTSACYLGGRPYFSTNSSARDVQRLAAPLGEKSPGLLFAGDA
+# TSLRGFGTIDAARSSGIREAQRIIDYYLKSVHCG]
+# end gene g3
+###
+# start gene g4
+FBgn0000075_4708	AUGUSTUS	gene	9421	10002	0.21	-	.	g4
+FBgn0000075_4708	AUGUSTUS	transcript	9421	10002	0.21	-	.	g4.t1
+FBgn0000075_4708	AUGUSTUS	tts	9421	9421	.	-	.	transcript_id "g4.t1"; gene_id "g4";
+FBgn0000075_4708	AUGUSTUS	exon	9421	10002	.	-	.	transcript_id "g4.t1"; gene_id "g4";
+FBgn0000075_4708	AUGUSTUS	stop_codon	9481	9483	.	-	0	transcript_id "g4.t1"; gene_id "g4";
+FBgn0000075_4708	AUGUSTUS	CDS	9481	10002	0.4	-	0	transcript_id "g4.t1"; gene_id "g4";
+# protein sequence = [WMLVNFDCSAMWLKDPSWVVNAFNVDPLYLKHDMQGSAPDYRHWQIPLGRRFRALKLWFVLRLYGVENLQAHIRRHCN
+# FAKQFGDLCVADSRFELAAEINMGLVCFRLKGSNERNEALLKRINGRGHIHLVPAKIKDVYFLRMAICSRFTQSEDMEYSWKEVSAAADEMEQEQ]
+# end gene g4
+###
+# command line:
+# ./augustus --fs=file --species=fly FBgn0000075_4708.fasta

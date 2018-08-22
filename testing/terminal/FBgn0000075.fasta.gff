@@ -1,0 +1,93 @@
+# This output was generated with AUGUSTUS (version 3.3.1).
+# AUGUSTUS is a gene prediction tool written by M. Stanke (mario.stanke@uni-greifswald.de),
+# O. Keller, S. König, L. Gerischer, L. Romoth and Katharina Hoff.
+# Please cite: Mario Stanke, Mark Diekhans, Robert Baertsch, David Haussler (2008),
+# Using native and syntenically mapped cDNA alignments to improve de novo gene finding
+# Bioinformatics 24: 637-644, doi 10.1093/bioinformatics/btn013
+# No extrinsic information on sequences given.
+# Initialising the parameters using config directory /home/giovanna/Desktop/Projects/augustus-3.3.1/config/ ...
+# fly version. Using default transition matrix.
+# Looks like FBgn0000075.fasta is in fasta format.
+# We have hints for 0 sequences and for 0 of the sequences in the input set.
+#
+# ----- prediction on sequence number 1 (length = 10001, name = FBgn0000075) -----
+#
+# Constraints/Hints:
+# (none)
+# Predicted genes for sequence number 1 on both strands
+# start gene g1
+FBgn0000075	AUGUSTUS	gene	2066	4264	0.12	+	.	g1
+FBgn0000075	AUGUSTUS	transcript	2066	4264	0.12	+	.	g1.t1
+FBgn0000075	AUGUSTUS	tss	2066	2066	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	exon	2066	2212	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	exon	2966	3049	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	start_codon	2970	2972	.	+	0	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	intron	3050	3110	1	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	intron	3346	4135	0.39	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	CDS	2970	3049	0.99	+	0	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	CDS	3111	3345	0.87	+	1	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	exon	3111	3345	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	CDS	4136	4180	0.4	+	0	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	exon	4136	4264	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	stop_codon	4178	4180	.	+	0	transcript_id "g1.t1"; gene_id "g1";
+FBgn0000075	AUGUSTUS	tts	4264	4264	.	+	.	transcript_id "g1.t1"; gene_id "g1";
+# protein sequence = [MDFDEFREFGHASIEFLINYLSGIRERDVLPSTAPYAVINQLPKEIPEQPDHWREVLKDLENIILPGLTHWQSPYFNA
+# FYPSSSSAGSIIGELLIAGIGVLGFSWIGHASQITVQSNRI]
+# end gene g1
+###
+# start gene g2
+FBgn0000075	AUGUSTUS	gene	4546	6809	0.71	+	.	g2
+FBgn0000075	AUGUSTUS	transcript	4546	6809	0.71	+	.	g2.t1
+FBgn0000075	AUGUSTUS	tss	4546	4546	.	+	.	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075	AUGUSTUS	exon	4546	5014	.	+	.	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075	AUGUSTUS	start_codon	4700	4702	.	+	0	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075	AUGUSTUS	intron	5015	5492	1	+	.	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075	AUGUSTUS	CDS	4700	5014	1	+	0	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075	AUGUSTUS	CDS	5493	6710	0.9	+	0	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075	AUGUSTUS	exon	5493	6809	.	+	.	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075	AUGUSTUS	stop_codon	6708	6710	.	+	0	transcript_id "g2.t1"; gene_id "g2";
+FBgn0000075	AUGUSTUS	tts	6809	6809	.	+	.	transcript_id "g2.t1"; gene_id "g2";
+# protein sequence = [MDAKEFREFGKAAIDYIADYLENIRDDDVLPNVEPGYLLDLLPTEMPEEPEAWKDVLGDISRVIKPGLTHWQSPHMHA
+# YYPTSTSYPSIVGEMLASGFGVIGFSWICSPACTELEVVVMDWLAKFLKLPAHFQHASDGPGGGVIQGSASEAVLVAVLAAREQAVANYRESHPELSE
+# SEVRGRLVAYSSDQSNSCIEKAGVLAAMPIRLLPAGEDFVLRGDTLRGAIEEDVAAGRIPVICVATLGTTGTCAYDDIESLSAVCEEFKVWLHVDAAY
+# AGGAFALEECSDLRKGLDRVDSLNFNLHKFMLVNFDCSAMWLRDANKVVDSFNVDRIYLKHKHEGQSQIPDFRHWQIPLGRRFRALKVWITFRTLGAE
+# GLRNHVRKHIELAKQFEQLVLKDSRFELVAPRALGLVCFRPKGDNEITTQLLQRLMDRKKIYMVKAEHAGRQFLRFVVCGMDTKASDIDFAWQEIESQ
+# LTDLQAEQSLVARKSGNVGDLAQHFQIHLSTENATHEKSQ]
+# end gene g2
+###
+# start gene g3
+FBgn0000075	AUGUSTUS	gene	7066	9267	0.1	+	.	g3
+FBgn0000075	AUGUSTUS	transcript	7066	9267	0.1	+	.	g3.t1
+FBgn0000075	AUGUSTUS	tss	7066	7066	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075	AUGUSTUS	exon	7066	7265	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075	AUGUSTUS	exon	7516	7542	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075	AUGUSTUS	start_codon	7535	7537	.	+	0	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075	AUGUSTUS	intron	7543	7604	0.98	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075	AUGUSTUS	CDS	7535	7542	0.9	+	0	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075	AUGUSTUS	CDS	7605	9111	1	+	1	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075	AUGUSTUS	exon	7605	9267	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075	AUGUSTUS	stop_codon	9109	9111	.	+	0	transcript_id "g3.t1"; gene_id "g3";
+FBgn0000075	AUGUSTUS	tts	9267	9267	.	+	.	transcript_id "g3.t1"; gene_id "g3";
+# protein sequence = [MQCFKLASRRSLYNARVLQADNIGDKQRSPDLEAARQNTQIVVVGAGLAGLSAAQHLLSHGFRRTVILEATDRYGGRI
+# NTQRFGDTYCELGAKWVKIDGSQDSMYELLRNTEGLGKQIKQPDRATYLQDGSRINPAMVELIDTLFRQLCRGFKVSERVKTGGDLHSLDNVMNYFRT
+# ESDRIIGVSFQHPKDQLAAREIFQSLFKEFGSILGCCLEYVNIEHITKCPVQQEQRPLYVPTGLDNVVDDLIQNMDKAQLQTGKPVGQIQWTPAPMKS
+# VGCLDGSLYNADHIICTLPLGVLKSFAGVLFRPTLPLDKMLAIRNLGFGNPLKIYLSYKKPIGRWLKGSLRPLGTLLNPSVEQQPERNWTQQVVEISQ
+# VPSSQHVLEVHVGGGYYEEIEKLPDEELLEQITGLLRRCVSSHLVPYPQELLRSNWSTSACYLGGRPYFSTNSSARDVQRLAAPLGEKSPGLLFAGDA
+# TSLRGFGTIDAARSSGIREAQRIIDYYLKSVHCG]
+# end gene g3
+###
+# start gene g4
+FBgn0000075	AUGUSTUS	gene	9420	9955	0.28	-	.	g4
+FBgn0000075	AUGUSTUS	transcript	9420	9955	0.28	-	.	g4.t1
+FBgn0000075	AUGUSTUS	tts	9420	9420	.	-	.	transcript_id "g4.t1"; gene_id "g4";
+FBgn0000075	AUGUSTUS	exon	9420	9955	.	-	.	transcript_id "g4.t1"; gene_id "g4";
+FBgn0000075	AUGUSTUS	stop_codon	9480	9482	.	-	0	transcript_id "g4.t1"; gene_id "g4";
+FBgn0000075	AUGUSTUS	CDS	9480	9902	0.61	-	0	transcript_id "g4.t1"; gene_id "g4";
+FBgn0000075	AUGUSTUS	start_codon	9900	9902	.	-	0	transcript_id "g4.t1"; gene_id "g4";
+FBgn0000075	AUGUSTUS	tss	9955	9955	.	-	.	transcript_id "g4.t1"; gene_id "g4";
+# protein sequence = [MQGSAPDYRHWQIPLGRRFRALKLWFVLRLYGVENLQAHIRRHCNFAKQFGDLCVADSRFELAAEINMGLVCFRLKGS
+# NERNEALLKRINGRGHIHLVPAKIKDVYFLRMAICSRFTQSEDMEYSWKEVSAAADEMEQEQ]
+# end gene g4
+###
+# command line:
+# ./augustus --species=fly FBgn0000075.fasta
