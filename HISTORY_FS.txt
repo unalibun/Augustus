@@ -1,0 +1,7 @@
+Version beta 1.0.0.0
+- shrink of the sequence to take into account single frameshift with minimal modifications to the original code
+- adjustment of crucial variables to preserve consistency of the shrink sequence with dp matrices (e.g. endOfPred, oli)
+- implementation of a dedicated leftMostExonBegin to handle both single/multiple user defined and constitutive frameshift
+- inclusion of a wrapper to viterbiAndForwardAndSampling to manage frameshift
+- inclusion of a new option --fs to turn frameshift on/off (-fs=file to make Augustus read a single fs locus from file bin/fs.hints)
+- adjustment of printGff to report any frameshift event occurred during prediction
